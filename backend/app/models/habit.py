@@ -1,10 +1,11 @@
 import uuid
-from datetime import datetime, time
+from datetime import date, datetime, time
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -61,6 +62,11 @@ class Habit(Base):
     is_archived: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false"), index=True
     )
+    # Дата, с которой считается текущая серия. Ставится при восстановлении
+    # из архива (§8): прошлые done никуда не деваются, и без такой отметки
+    # серия продолжилась бы, а архив работал бы как бесконечная пауза в обход
+    # правила 14 дней. Рекорд считается по всей истории и отметку игнорирует.
+    streak_reset_on: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
