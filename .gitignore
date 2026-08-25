@@ -1,0 +1,20 @@
+# секреты
+.env
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# node
+node_modules/
+dist/
+*.local
+
+# ide / os
+.idea/
+.vscode/
+Thumbs.db
