@@ -156,6 +156,17 @@ async def _apply(callback: CallbackQuery, action: str, occurrence_id: uuid.UUID)
             await callback.answer(explain(error), show_alert=True)
             return None
 
+        # Симметрично диспетчеру, который пишет в лог каждую отправку:
+        # иначе удачное нажатие не оставляет следа и отлаживать цикл
+        # по логам не выходит.
+        log.info(
+            "%s: %s -> %s (occurrence %s)",
+            occurrence.habit.title,
+            action,
+            occurrence.status.value,
+            occurrence.id,
+        )
+
         # Собираем итог, пока сессия открыта: после commit объект живой
         # (expire_on_commit=False), но привычка и таймзона нужны здесь.
         return messages.action_note(occurrence, resolve_tz(user.timezone))
