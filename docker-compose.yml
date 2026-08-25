@@ -1,0 +1,88 @@
+name: habit-tracker
+
+# Общий кусок для трёх бэкенд-процессов: образ, окружение, монтирование
+# исходников. Различаются они только командой запуска.
+x-backend: &backend
+  build: ./backend
+  env_file: .env
+  environment:
+    # Инвариант 2: внутри системы всё время в UTC. Контейнер, унаследовавший
+    # таймзону хоста, ломает расчёт local_date и джоб закрытия дня.
+    TZ: UTC
+  volumes:
+    # Исходники монтируются, а не копируются, — иначе каждая правка требует
+    # пересборки образа.
+    - ./backend:/app
+  depends_on:
+    db:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Без healthcheck остальные сервисы стартуют раньше, чем Postgres примет
+      # соединения, и падают с невнятной ошибкой.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Миграции отдельным one-shot сервисом. Если гонять их в entrypoint каждого
+  # из трёх процессов, они подерутся за блокировку Alembic.
+  migrate:
+    build: ./backend
+    command: alembic upgrade head
+    env_file: .env
+    environment:
+      TZ: UTC
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *backend
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *backend
+    command: python -m app.scheduler.main
+
+  bot:
+    <<: *backend
+    command: python -m app.bot.main
+
+  web:
+    build: ./frontend
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    environment:
+      TZ: UTC
+      # На Docker Desktop и WSL2 Vite без поллинга не видит изменения файлов.
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      # Анонимный volume: иначе монтирование ./frontend затрёт node_modules,
+      # установленные при сборке образа.
+      - /app/node_modules
+
+volumes:
+  pgdata:
