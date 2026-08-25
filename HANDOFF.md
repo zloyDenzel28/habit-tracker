@@ -59,7 +59,7 @@
 
 - [x] Docker Desktop установлен, `docker compose version` работает
 - [x] Токен бота от @BotFather получен
-- [ ] Свой Telegram ID узнан через @userinfobot — **нужен для фикстур на шаге 2**
+- [x] Свой Telegram ID узнан через @userinfobot, лежит в `.env` как `SEED_TELEGRAM_ID`
 - [x] `.env` создан из `.env.example`, `.env` в `.gitignore`
 
 ## Первый промпт в новой сессии
