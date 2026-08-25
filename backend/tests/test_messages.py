@@ -61,10 +61,14 @@ def test_на_исчерпанных_снузах_кнопка_плюс_пять
     assert labels(message) == ["▶️ Начал", "🚫 Пропустить сегодня"]
 
 
-def test_у_pending_кнопки_снуза_нет():
-    """Снуз возможен только из notified, а pending человек ещё не видел."""
+def test_кнопка_снуза_есть_и_у_ещё_не_помеченной_записи():
+    """Диспетчер сначала отправляет, потом ставит notified.
+
+    То есть на момент сборки сообщения occurrence ещё pending — и если
+    спрашивать occurrences.can_snooze, кнопка «+5 мин» не покажется никогда.
+    """
     message = messages.reminder(make(OccurrenceStatus.pending), MSK)
-    assert "⏰ +5 мин" not in labels(message)
+    assert "⏰ +5 мин" in labels(message)
 
 
 def test_догоняющий_пинг_начавшему_предлагает_не_получилось():

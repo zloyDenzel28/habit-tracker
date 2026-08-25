@@ -17,9 +17,8 @@ import html
 from dataclasses import dataclass
 from zoneinfo import ZoneInfo
 
-from app.models import Occurrence, OccurrenceStatus
+from app.models import MAX_SNOOZE_COUNT, Occurrence, OccurrenceStatus
 from app.notifier import Button
-from app.services.occurrences import can_snooze
 from app.services.timeutils import to_tz
 
 # Формат callback_data: "occ:<действие>:<uuid>". Разбирать его будет бот
@@ -64,9 +63,15 @@ def _local_time(occurrence: Occurrence, tz: ZoneInfo) -> str:
 def reminder(occurrence: Occurrence, tz: ZoneInfo) -> Message:
     """Первое уведомление в момент current_due_at (§5)."""
     buttons = [_button("▶️ Начал", ACTION_START, occurrence)]
-    if can_snooze(occurrence):
+    if occurrence.snooze_count < MAX_SNOOZE_COUNT:
         # §4: на шестой раз кнопка не показывается — остаются «Начал»
         # и «Пропустить».
+        #
+        # Спрашиваем только про счётчик, а не про occurrences.can_snooze:
+        # тот проверяет ещё и статус notified, а сообщение собирается до
+        # того, как диспетчер этот статус проставит (он сначала отправляет,
+        # потом помечает). Вопрос здесь другой — «остались ли снузы»,
+        # потому что reminder() вызывается ровно для уходящего уведомления.
         buttons.append(_button("⏰ +5 мин", ACTION_SNOOZE, occurrence))
     buttons.append(_button("🚫 Пропустить сегодня", ACTION_SKIP, occurrence))
     return Message(
