@@ -24,6 +24,7 @@ from app.logging_config import setup_logging
 from app.notifier import LogNotifier, Notifier
 from app.scheduler import jobs
 from app.services.timeutils import now_utc
+from app.telegram import TelegramNotifier, create_bot
 
 log = logging.getLogger("worker")
 
@@ -102,7 +103,15 @@ async def main() -> None:
     # он не отработает. Джоб идемпотентен, лишний запуск ничего не портит.
     await jobs.generate_occurrences(SessionLocal)
 
-    notifier = LogNotifier()
+    # Инвариант 5 ровно про эту строчку: чтобы перевести проект с логов на
+    # реальную отправку, меняется реализация Notifier и больше ничего.
+    # LogNotifier остаётся рабочим вариантом: с ним удобно гонять джобы,
+    # не засоряя чат.
+    bot = create_bot(settings.telegram_bot_token) if settings.telegram_bot_token else None
+    notifier: Notifier = TelegramNotifier(bot) if bot else LogNotifier()
+    if bot is None:
+        log.warning("TELEGRAM_BOT_TOKEN пуст — уведомления уходят в лог, а не в Telegram")
+
     scheduler = build_scheduler(notifier)
     scheduler.start()
     for job in scheduler.get_jobs():
@@ -114,6 +123,8 @@ async def main() -> None:
 
     log.info("worker останавливается")
     scheduler.shutdown(wait=True)
+    if bot is not None:
+        await bot.session.close()
     await engine.dispose()
 
 
