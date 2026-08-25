@@ -13,6 +13,7 @@
     generation  создание occurrences по расписанию (§6.1)
     pauses      отрезки пауз (§3, §7)
     habits      создание, правка, архив, пауза, смена таймзоны (§8, §9)
+    messages    тексты уведомлений и наборы кнопок (§5)
     stats       стрики и статистика (§7)
 """
 
@@ -21,6 +22,7 @@ from app.services import (
     errors,
     generation,
     habits,
+    messages,
     occurrences,
     pauses,
     stats,
@@ -32,6 +34,7 @@ __all__ = [
     "errors",
     "generation",
     "habits",
+    "messages",
     "occurrences",
     "pauses",
     "stats",
