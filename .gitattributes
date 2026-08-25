@@ -1,0 +1,3 @@
+# Файлы уезжают в Linux-контейнеры. Windows-овские CRLF ломают shell-скрипты
+# невнятной ошибкой "bad interpreter", поэтому в репозитории всегда LF.
+* text=auto eol=lf
