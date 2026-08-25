@@ -11,3 +11,8 @@ def setup_logging() -> None:
         # в угадывание, какое время где показано.
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
+    # APScheduler на каждый запуск джоба пишет две строки уровня INFO.
+    # На отладочном тике в 5 секунд это забивает лог, а полезного в них нет:
+    # содержательный итог каждый джоб пишет сам. Ошибки уровня WARNING
+    # и выше остаются видимыми.
+    logging.getLogger("apscheduler.executors").setLevel(logging.WARNING)
