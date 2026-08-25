@@ -15,6 +15,7 @@
     habits      создание, правка, архив, пауза, смена таймзоны (§8, §9)
     messages    тексты уведомлений и наборы кнопок (§5)
     stats       стрики и статистика (§7)
+    users       поиск пользователя по telegram_id
 """
 
 from app.services import (
@@ -27,6 +28,7 @@ from app.services import (
     pauses,
     stats,
     timeutils,
+    users,
 )
 
 __all__ = [
@@ -39,4 +41,5 @@ __all__ = [
     "pauses",
     "stats",
     "timeutils",
+    "users",
 ]

@@ -14,21 +14,27 @@ parse_mode="HTML". Легаси-Markdown Telegram спотыкается на п
 from __future__ import annotations
 
 import html
+import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from app.models import MAX_SNOOZE_COUNT, Occurrence, OccurrenceStatus
 from app.notifier import Button
 from app.services.timeutils import to_tz
 
-# Формат callback_data: "occ:<действие>:<uuid>". Разбирать его будет бот
-# на шаге 4. Укладываемся в лимит Telegram в 64 байта: 4 + 7 + 36 = 47.
+# Формат callback_data: "occ:<действие>:<uuid>". Укладываемся в лимит Telegram
+# в 64 байта: 4 + 7 + 36 = 47.
 CALLBACK_PREFIX = "occ"
 
 ACTION_START = "start"
 ACTION_SNOOZE = "snooze"
 ACTION_DONE = "done"
 ACTION_SKIP = "skip"
+
+# Разбор лежит рядом со сборкой намеренно: формат один, и если менять его
+# в двух местах, они однажды разойдутся.
+ACTIONS: frozenset[str] = frozenset({ACTION_START, ACTION_SNOOZE, ACTION_DONE, ACTION_SKIP})
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,3 +111,49 @@ def followup(occurrence: Occurrence, tz: ZoneInfo) -> Message:
             _button(negative, ACTION_SKIP, occurrence),
         ],
     )
+
+
+def parse_callback_data(data: str) -> tuple[str, uuid.UUID] | None:
+    """«occ:done:<uuid>» -> ("done", UUID). None, если строка чужая или битая.
+
+    Ничего не поднимает: callback_data приходит снаружи и может быть каким
+    угодно — от кнопки старой версии бота до подделки. Хендлер на None просто
+    отвечает человеку, что кнопка ему незнакома.
+    """
+    parts = data.split(":")
+    if len(parts) != 3:
+        return None
+    prefix, action, raw_id = parts
+    if prefix != CALLBACK_PREFIX or action not in ACTIONS:
+        return None
+    try:
+        return action, uuid.UUID(raw_id)
+    except ValueError:
+        return None
+
+
+def _hhmm(moment: datetime | None, tz: ZoneInfo) -> str:
+    return to_tz(moment, tz).strftime("%H:%M") if moment else "—"
+
+
+def action_note(occurrence: Occurrence, tz: ZoneInfo) -> str:
+    """Строка-итог, которой бот дописывает уже отправленное уведомление.
+
+    Она часть того же сообщения из §5, поэтому живёт здесь, а не в хендлере:
+    иначе после веб-интерфейса (шаг 5) формулировки разойдутся. Текст зависит
+    только от статуса, в который занятие уже переведено сервисом.
+    """
+    match occurrence.status:
+        case OccurrenceStatus.in_progress:
+            return f"▶️ Начал в {_hhmm(occurrence.started_at, tz)}"
+        case OccurrenceStatus.snoozed:
+            # current_due_at уже сдвинут снузом — показываем новое время.
+            return f"⏰ Перенесено на {_local_time(occurrence, tz)}"
+        case OccurrenceStatus.done:
+            return f"✅ Выполнено в {_hhmm(occurrence.finished_at, tz)}"
+        case OccurrenceStatus.skipped:
+            return f"🚫 Пропущено в {_hhmm(occurrence.finished_at, tz)}"
+        case _:
+            # Кнопок, ведущих в остальные статусы, нет. Ветка на случай,
+            # если появятся: молчаливое пустое сообщение хуже.
+            return f"Статус: {occurrence.status.value}"
