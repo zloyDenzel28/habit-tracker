@@ -94,6 +94,7 @@ class Notifier(Protocol):
 | `local_date` | date | дата по таймзоне пользователя, для календаря и стриков |
 | `scheduled_at` | timestamptz | исходное плановое время |
 | `current_due_at` | timestamptz | плановое время с учётом снузов |
+| `duration_minutes` | int | снимок `Habit.duration_minutes` на момент создания |
 | `status` | enum | см. раздел 4 |
 | `snooze_count` | int, default 0 | максимум 5 |
 | `notified_at` | timestamptz, nullable | |
@@ -102,6 +103,8 @@ class Notifier(Protocol):
 | `finished_at` | timestamptz, nullable | переход в терминальный статус |
 
 Уникальный индекс: `(habit_id, scheduled_at)` — защита от дублей при повторном запуске генератора.
+
+**Поправка к v1.3 (шаг 1).** `duration_minutes` намеренно дублируется на occurrence, хотя длительность есть в Habit. Догоняющий пинг считается как `started_at + duration` (§6.2): если брать длительность из шаблона в момент запроса, то правка привычки среди дня сдвинет таймер уже запущенного выполнения и задним числом изменит прошлые записи. Это противоречит §8 («прошлые и текущие occurrences не трогаются») и принципу, по которому вся история живёт на occurrence.
 
 ### HabitPause
 
