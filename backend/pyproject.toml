@@ -21,6 +21,17 @@ dependencies = [
     "tzdata>=2024.1",
 ]
 
+[project.optional-dependencies]
+# Ставятся в тот же образ: проект локальный, отдельная сборка под тесты
+# сложнее, чем польза от неё. Запуск: docker compose exec api pytest
+dev = ["pytest>=8.2,<9"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Тесты сервисного слоя намеренно не ходят в БД, поэтому обычный pytest
+# без плагинов их прогоняет целиком.
+addopts = "-q"
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
