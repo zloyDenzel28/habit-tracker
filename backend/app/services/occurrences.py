@@ -20,10 +20,16 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.models import MAX_SNOOZE_COUNT, TERMINAL_STATUSES, Occurrence, OccurrenceStatus
+from app.models import (
+    MAX_SNOOZE_COUNT,
+    TERMINAL_STATUSES,
+    Occurrence,
+    OccurrenceStatus,
+    User,
+)
 from app.services.constants import SNOOZE_STEP
 from app.services.errors import AlreadyInStatus, InvalidTransition, SnoozeLimitReached
-from app.services.timeutils import ensure_aware, now_utc
+from app.services.timeutils import ensure_aware, local_date_of, now_utc, resolve_tz
 
 # Статусы, из которых occurrence ещё может куда-то уйти.
 # paused сюда входит: §4 описывает переход paused -> pending при снятии паузы,
@@ -233,6 +239,15 @@ async def due_for_followup(
     Два случая из §5: человек нажал «Начал» — считаем от started_at; человек
     не отреагировал — считаем от current_due_at, поэтому снуз двигает пинг
     автоматически. followup_sent_at IS NULL защищает от повтора (инвариант 7).
+
+    Во втором случае берём не сам current_due_at, а более поздний из него и
+    notified_at. В штатном режиме это одно и то же: планировщик уведомляет
+    в плановую минуту. Но если occurrence просрочен дольше своей длительности
+    (воркер стоял, привычка создана задним числом), то оба условия §6.2
+    выполняются разом и человек получает два сообщения подряд — «пора» и
+    «успел?». GREATEST разводит их на duration: отсчёт идёт от момента, когда
+    человек реально увидел уведомление. Та же поправка, что и в snooze().
+    GREATEST в Postgres игнорирует NULL, поэтому пустой notified_at безопасен.
     """
     now = ensure_aware(now) if now else now_utc()
     stmt = (
@@ -243,7 +258,13 @@ async def due_for_followup(
                 (Occurrence.status == OccurrenceStatus.in_progress)
                 & (_elapsed_at(Occurrence.started_at, Occurrence.duration_minutes) <= now),
                 (Occurrence.status == OccurrenceStatus.notified)
-                & (_elapsed_at(Occurrence.current_due_at, Occurrence.duration_minutes) <= now),
+                & (
+                    _elapsed_at(
+                        func.greatest(Occurrence.current_due_at, Occurrence.notified_at),
+                        Occurrence.duration_minutes,
+                    )
+                    <= now
+                ),
             ),
         )
         .order_by(Occurrence.current_due_at)
@@ -312,3 +333,24 @@ async def list_for_local_date(
             .options(joinedload(Occurrence.habit, innerjoin=True))
         )
     ).all()
+
+
+async def close_finished_days(session: AsyncSession, *, now: datetime | None = None) -> int:
+    """§6.3 по всем пользователям сразу. Возвращает число закрытых записей.
+
+    Отдельного вопроса «а наступила ли у него полночь?» здесь нет намеренно.
+    Для каждого пользователя берётся его текущая локальная дата и закрывается
+    всё, что раньше неё. Это даёт тот же результат, но не требует помнить,
+    когда джоб отработал в прошлый раз: повторный запуск в том же часу просто
+    не найдёт незакрытых записей (инвариант 7). Заодно чинится случай, когда
+    контейнер простоял сутки — закроются все пропущенные дни, а не последний.
+    """
+    now = ensure_aware(now) if now else now_utc()
+    users = (await session.scalars(select(User))).all()
+    closed = 0
+    for user in users:
+        tz = resolve_tz(user.timezone)
+        closed += await close_local_day(
+            session, user.id, before_local_date=local_date_of(now, tz), at=now
+        )
+    return closed
