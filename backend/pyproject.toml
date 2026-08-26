@@ -24,13 +24,22 @@ dependencies = [
 [project.optional-dependencies]
 # Ставятся в тот же образ: проект локальный, отдельная сборка под тесты
 # сложнее, чем польза от неё. Запуск: docker compose exec api pytest
-dev = ["pytest>=8.2,<9"]
+dev = [
+    "pytest>=8.2,<9",
+    # Тесты сервисного слоя, ходящие в Postgres, и тесты роутеров async def.
+    "pytest-asyncio>=1.4,<2",
+    # ASGI-транспорт для тестов роутеров без поднятого uvicorn.
+    "httpx>=0.28,<1",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Тесты сервисного слоя намеренно не ходят в БД, поэтому обычный pytest
-# без плагинов их прогоняет целиком.
 addopts = "-q"
+# auto: async def test_... не нужно размечать @pytest.mark.asyncio вручную.
+# Фикстуры БД (db_session, client) — по одной на тест, той же дефолтной
+# function-scope петли, что и сам тест: иначе asyncpg-соединение из одной
+# петли пытаются использовать из другой, и это RuntimeError.
+asyncio_mode = "auto"
 
 [build-system]
 requires = ["setuptools>=68"]
