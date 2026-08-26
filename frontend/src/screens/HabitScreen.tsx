@@ -191,6 +191,9 @@ function PauseSection({
           <input
             type="date"
             value={startsOn}
+            /* §3: пауза задним числом запрещена. Подсказка браузера, отказ
+               всё равно приходит от бэка — проверка живёт в services (инвариант 4). */
+            min={todayInTimezone(timezone)}
             onChange={(e) => setStartsOn(e.target.value)}
             required
           />

@@ -285,11 +285,6 @@ async def test_пауза_без_даты_окончания_ставится_н
     assert pause.ends_on == today + timedelta(days=7)
 
 
-@pytest.mark.xfail(
-    reason="находка 8: pause_habit не проверяет, что starts_on не в прошлом — "
-    "ретроспективная пауза длиннее 14 дней задним числом обнуляет серию",
-    strict=True,
-)
 async def test_пауза_задним_числом_запрещена(db_session):
     user = await make_user(db_session, timezone_name="Europe/Moscow")
     habit = await make_habit(db_session, user, schedule_time=time(8, 0))

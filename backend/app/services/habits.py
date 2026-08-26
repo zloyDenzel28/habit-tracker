@@ -207,6 +207,19 @@ async def pause_habit(
     if ends_on < starts_on:
         raise ValidationError("дата окончания паузы раньше даты начала")
 
+    # §3: пауза задним числом запрещена. Интервал в прошлом длиннее 14 дней
+    # обнуляет уже сложившуюся серию (§7), хотя дни внутри него давно закрыты
+    # своими статусами и продолжают считаться выполненными — правило §7
+    # применялось бы одной штрафной половиной. Ретроспективную отметку §10
+    # выносит за MVP, и через паузу эту дверь тоже закрываем.
+    # Таймзону берём из пользователя, а не из аргумента: вызывающих у ручки
+    # трое (роутер, фикстуры, тесты), и «сегодня» у всех должно быть одно.
+    owner = await session.get(User, habit.user_id)
+    if owner is None:  # FK не даёт этому случиться, но mypy об этом не знает
+        raise ValidationError("у привычки нет владельца")
+    if starts_on < local_date_of(now, resolve_tz(owner.timezone)):
+        raise ValidationError("пауза не может начинаться раньше сегодняшнего дня")
+
     pause = HabitPause(habit_id=habit.id, starts_on=starts_on, ends_on=ends_on)
     session.add(pause)
     await session.flush()
