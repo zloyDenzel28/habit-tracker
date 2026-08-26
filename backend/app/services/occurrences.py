@@ -331,6 +331,38 @@ async def close_local_day(
     return closed
 
 
+async def close_open_for_habit(
+    session: AsyncSession,
+    habit_id: uuid.UUID,
+    *,
+    local_date: date,
+    at: datetime | None = None,
+) -> int:
+    """§8: архивация гасит открытые занятия дня как skipped.
+
+    Статус тот же, что у кнопки «Не получилось»: архив — осознанный отказ
+    от привычки, тот же жест. Без этого занятие оставалось живым — диспетчер
+    слал по нему догоняющие пинги от привычки, которой в списке уже нет.
+
+    paused не трогаем: приостановленный день в расчётах не участвует (§7),
+    и превращать его в отказ незачем. Терминальные записи неприкосновенны —
+    история §8. Массовым UPDATE по той же причине, что и close_local_day,
+    и статус так же выбран здесь, а не в WHERE (инвариант 4).
+    """
+    at = ensure_aware(at) if at else now_utc()
+    result = await session.execute(
+        update(Occurrence)
+        .where(
+            Occurrence.habit_id == habit_id,
+            Occurrence.local_date == local_date,
+            Occurrence.status.in_(UNRESOLVED_STATUSES),
+        )
+        .values(status=OccurrenceStatus.skipped, finished_at=at)
+        .execution_options(synchronize_session=False)
+    )
+    return result.rowcount or 0
+
+
 async def get_for_user(
     session: AsyncSession, occurrence_id: uuid.UUID, user_id: uuid.UUID
 ) -> Occurrence | None:

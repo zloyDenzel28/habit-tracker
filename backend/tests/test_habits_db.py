@@ -4,9 +4,8 @@ change_user_timezone, cancel_pause, pause_habit, archive_habit, restore_habit �
 ни один не проверялся до этой сессии: все они читают и пишут occurrences,
 а 49 существующих тестов сознательно без БД (см. test_transitions.py).
 
-xfail'ы здесь фиксируют РЕШЁННОЕ поведение из docs/requirements.md по итогам
-сессии тестирования 26.08.2026 — код его ещё не реализует. Список xfail этого
-файла — чек-лист для сессии починки «таймзона и паузы» из HANDOFF.md.
+Тесты по итогам сессии тестирования 26.08.2026 заводились как xfail и снимались
+по мере починки; здесь их больше не осталось.
 """
 
 from __future__ import annotations
@@ -337,12 +336,9 @@ async def test_архивация_удаляет_будущие_pending_и_со�
     assert past_done.status is OccurrenceStatus.done
 
 
-@pytest.mark.xfail(
-    reason="находка 7: archive_habit не закрывает уже отправленные сегодняшние "
-    "занятия — диспетчер продолжает слать по ним догоняющие пинги",
-    strict=True,
-)
 async def test_архивация_закрывает_открытые_занятия_сегодняшнего_дня(db_session):
+    """§8: иначе диспетчер продолжает слать догоняющие пинги по привычке,
+    которой в списке уже нет."""
     user = await make_user(db_session, timezone_name="Europe/Moscow")
     habit = await make_habit(db_session, user, schedule_time=time(8, 0))
     now = datetime(2026, 8, 26, 5, 0, tzinfo=timezone.utc)

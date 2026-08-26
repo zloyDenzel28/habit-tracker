@@ -26,6 +26,7 @@ from app.services.constants import (
 )
 from app.services.errors import ValidationError
 from app.services.generation import delete_future_pending, generate_for_habit, regenerate
+from app.services.occurrences import close_open_for_habit
 from app.services.timeutils import (
     combine_local,
     ensure_aware,
@@ -150,13 +151,34 @@ async def archive_habit(
 ) -> Habit:
     """§8: мягкое удаление. История сохраняется, будущие pending исчезают.
 
+    Открытые занятия сегодняшнего дня закрываются как skipped (уточнение
+    от 26.08.2026). Одного удаления будущих pending мало: занятие, по которому
+    уведомление уже ушло, оставалось живым — диспетчер слал по нему догоняющие
+    пинги, карточка висела на «Сегодня», а самой привычки в списке уже не было.
+
+    Порядок важен: сначала удаляем будущее, потом гасим остаток. Иначе занятие
+    на вечер того же дня получило бы skipped вместо удаления — то есть отказ,
+    которого человек не совершал, попал бы в статистику.
+
+    Таймзону берём из владельца, как pause_habit: «сегодня» у всех вызывающих
+    должно быть одно.
+
     HabitPause здесь не создаётся (инвариант 8): архивация — это отказ
     от привычки, а не перерыв в ней.
     """
     now = ensure_aware(now) if now else now_utc()
+    owner = await session.get(User, habit.user_id)
+    if owner is None:  # FK не даёт этому случиться, но mypy об этом не знает
+        raise ValidationError("у привычки нет владельца")
     habit.is_archived = True
     await session.flush()
     await delete_future_pending(session, habit, now=now)
+    await close_open_for_habit(
+        session,
+        habit.id,
+        local_date=local_date_of(now, resolve_tz(owner.timezone)),
+        at=now,
+    )
     return habit
 
 
