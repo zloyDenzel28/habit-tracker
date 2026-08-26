@@ -357,3 +357,22 @@ textarea {
   padding: 0 1rem;
   text-align: center;
 }
+
+.steps {
+  padding-left: 1.2rem;
+}
+.steps li {
+  margin-bottom: 0.3rem;
+}
+.channel {
+  display: grid;
+  gap: 0.25rem;
+  max-width: 30rem;
+}
+code {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.9em;
+}

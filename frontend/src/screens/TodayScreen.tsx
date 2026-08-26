@@ -36,6 +36,7 @@ export default function TodayScreen({ user }: { user: User }) {
   return (
     <section>
       <h1>Сегодня</h1>
+      <TelegramHint />
       {error !== null && <p className="error">{error}</p>}
       {items.length === 0 ? (
         <p className="stub">На сегодня занятий нет.</p>
@@ -63,6 +64,47 @@ export default function TodayScreen({ user }: { user: User }) {
         </ul>
       )}
     </section>
+  )
+}
+
+const HINT_KEY = 'habit-tracker:telegram-hint-dismissed'
+
+/** Одноразовая подсказка про подписку на бота.
+
+Проверить, начал ли человек диалог, нельзя: Telegram про это не сообщает,
+отказ виден только при попытке отправки и уходит в логи воркера. Поэтому
+подсказка показывается всем и закрывается вручную — иначе тот, кто уже
+нажал «Старт», видел бы её вечно. */
+function TelegramHint() {
+  const [dismissed, setDismissed] = useState(() => {
+    // В приватном окне доступ к localStorage может бросить исключение.
+    try {
+      return localStorage.getItem(HINT_KEY) !== null
+    } catch {
+      return false
+    }
+  })
+
+  if (dismissed) return null
+
+  function dismiss() {
+    try {
+      localStorage.setItem(HINT_KEY, '1')
+    } catch {
+      /* не сохранилось — подсказка просто вернётся после перезагрузки */
+    }
+    setDismissed(true)
+  }
+
+  return (
+    <p className="notice">
+      Напоминания приходят в Telegram, но бот не может написать первым, пока вы
+      сами не отправите ему «Старт». Как это сделать — в{' '}
+      <a href="#/settings">настройках</a>.
+      <button type="button" className="link" onClick={dismiss}>
+        понятно
+      </button>
+    </p>
   )
 }
 

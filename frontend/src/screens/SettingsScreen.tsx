@@ -60,21 +60,40 @@ export default function SettingsScreen({
           По нему считаются день привычки и время напоминания. Уже назначенные
           на будущее занятия пересчитаются.
         </p>
-
-        <label>
-          Канал уведомлений
-          <select value="telegram" disabled>
-            <option value="telegram">Telegram</option>
-          </select>
-        </label>
-        <p className="hint">Других каналов в MVP нет — поле оставлено на будущее.</p>
-
         <button type="submit" disabled={busy || timezone === user.timezone}>
           {busy ? 'Сохраняем…' : 'Сохранить'}
         </button>
         {saved && <p className="hint">Сохранено.</p>}
         {error !== null && <p className="error">{error}</p>}
       </form>
+
+      <h2>Уведомления</h2>
+      <label className="channel">
+        Канал
+        <select value="telegram" disabled>
+          <option value="telegram">Telegram</option>
+        </select>
+      </label>
+      <p className="hint">Других каналов в MVP нет — поле оставлено на будущее.</p>
+
+      <p>
+        Telegram не разрешает боту написать первым, пока вы сами не начали
+        диалог. Поэтому один раз это нужно сделать вручную:
+      </p>
+      <ol className="steps">
+        <li>
+          Откройте в Telegram своего бота — того, чей токен лежит
+          в <code>TELEGRAM_BOT_TOKEN</code>.
+        </li>
+        <li>
+          Нажмите «Старт» или отправьте <code>/start</code>.
+        </li>
+      </ol>
+      <p className="hint">
+        Без этого напоминания не придут, и в интерфейсе это никак не видно:
+        отказ Telegram попадает только в логи воркера. Если уведомлений нет —
+        проверку стоит начинать отсюда.
+      </p>
 
       <h2>Профиль</h2>
       <ul className="profile">
