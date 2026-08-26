@@ -5,8 +5,6 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 
-import pytest
-
 from app.models import OccurrenceStatus
 from tests.conftest import auth_headers
 from tests.factories import make_habit, make_occurrence, make_pause, make_user
@@ -211,12 +209,6 @@ async def test_проверка_пересечений(client, db_session):
     assert "Тренировка" in titles
 
 
-@pytest.mark.xfail(
-    reason="находка 9: heatmap не достраивает дни паузы из HabitPause — "
-    "статус paused получают только occurrences, успевшие появиться до "
-    "постановки паузы (горизонт генерации — двое суток)",
-    strict=True,
-)
 async def test_heatmap_красит_все_дни_длинной_паузы(client, db_session):
     user = await make_user(db_session)
     habit = await make_habit(db_session, user)

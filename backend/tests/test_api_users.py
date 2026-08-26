@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import date, time
 
-import pytest
-
 from app.models import OccurrenceStatus
 from app.services.timeutils import combine_local
 from tests.conftest import auth_headers

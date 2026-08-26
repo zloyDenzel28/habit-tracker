@@ -184,5 +184,5 @@ async def get_heatmap(
 ) -> list[HeatmapDayOut]:
     end = end or habits.user_today(user)
     start = start or end - timedelta(days=DEFAULT_HEATMAP_DAYS - 1)
-    rows = await stats.heatmap(session, habit.id, start=start, end=end)
+    rows = await stats.heatmap(session, habit, resolve_tz(user.timezone), start=start, end=end)
     return [HeatmapDayOut(date=d, status=s) for d, s in rows]

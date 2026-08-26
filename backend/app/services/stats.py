@@ -21,8 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Habit, Occurrence, OccurrenceStatus
 from app.services.constants import STATS_WINDOW_DAYS
-from app.services.pauses import load_pause_windows
-from app.services.timeutils import today_local
+from app.services.pauses import is_paused_on, load_pause_windows
+from app.services.timeutils import days_range, today_local
 
 # Статусы, которые участвуют в проценте выполнения: done / (done+skipped+missed).
 COUNTED_STATUSES = (
@@ -153,20 +153,43 @@ async def habit_stats(
 
 
 async def heatmap(
-    session: AsyncSession, habit_id: uuid.UUID, *, start: date, end: date
+    session: AsyncSession, habit: Habit, tz: ZoneInfo, *, start: date, end: date
 ) -> Sequence[tuple[date, OccurrenceStatus]]:
     """Календарь-«травка» (§7): по дню на каждую запись в диапазоне.
 
-    Дни без occurrence не возвращаются вовсе — по расписанию привычки в этот
-    день и не было. Отличать их от паузы фронт может по статусу paused.
+    Дни без occurrence и без паузы не возвращаются вовсе — по расписанию
+    привычки в этот день ничего и не было.
+
+    Дни паузы достраиваются из HabitPause, а не берутся из occurrences (§7).
+    Генератор (§6.1) дни активной паузы пропускает и записей на них не
+    создаёт, поэтому статус paused достаётся только занятиям, успевшим
+    появиться до постановки паузы — на горизонте в двое суток. Для паузы
+    в двадцать дней это два дня из двадцати, а остальные восемнадцать
+    в календаре неотличимы от дней вне расписания.
     """
     rows = await session.execute(
         select(Occurrence.local_date, Occurrence.status)
         .where(
-            Occurrence.habit_id == habit_id,
+            Occurrence.habit_id == habit.id,
             Occurrence.local_date >= start,
             Occurrence.local_date <= end,
         )
         .order_by(Occurrence.local_date)
     )
-    return [(row.local_date, row.status) for row in rows]
+    by_day: dict[date, OccurrenceStatus] = {row.local_date: row.status for row in rows}
+
+    windows = await load_pause_windows(session, habit.id, tz)
+    scheduled_days = set(habit.schedule_days)
+    for day in days_range(start, end):
+        # Occurrence — запись о том, что с днём реально случилось, и пауза её
+        # не перекрывает: день, закрытый как done, остаётся done. Пауза только
+        # заполняет дни, на которых записи нет.
+        if day in by_day or not is_paused_on(windows, day):
+            continue
+        # Дни вне расписания привычки паузой не красим: без паузы их в
+        # календаре тоже не было бы, и красить их — врать про расписание.
+        if day.isoweekday() not in scheduled_days:
+            continue
+        by_day[day] = OccurrenceStatus.paused
+
+    return sorted(by_day.items())
