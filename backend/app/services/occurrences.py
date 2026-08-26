@@ -291,6 +291,13 @@ async def close_local_day(
     Массовым UPDATE, а не по одному объекту: за раз может закрываться много дней,
     а решение принимает WHERE, а не бизнес-правило. Условие по статусам
     повторяет mark_missed: paused не трогаем.
+
+    Записи, у которых current_due_at ещё в будущем, джоб пропускает (§6.3,
+    уточнение от 26.08.2026). Снуз незадолго до полуночи переносит срок в новые
+    сутки, а local_date остаётся вчерашним — без этой оговорки закрытие дня
+    убивало бы занятие раньше срока, обещанного кнопкой. Занятие остаётся за
+    своим днём в статистике, а следующий часовой прогон закроет его, когда срок
+    пройдёт, а ответа так и не будет.
     """
     at = ensure_aware(at) if at else now_utc()
     result = await session.execute(
@@ -298,6 +305,7 @@ async def close_local_day(
         .where(
             Occurrence.user_id == user_id,
             Occurrence.local_date < before_local_date,
+            Occurrence.current_due_at <= at,
             Occurrence.status.in_(UNRESOLVED_STATUSES),
         )
         .values(status=OccurrenceStatus.missed, finished_at=at)
