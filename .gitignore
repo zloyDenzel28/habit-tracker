@@ -21,3 +21,4 @@ Thumbs.db
 
 # артефакты браузерной отладки (снимки страниц и лог консоли)
 .playwright-mcp/
+frontend/tsconfig.tsbuildinfo
