@@ -1,9 +1,11 @@
+import logging
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app.api.routers import auth, habits, occurrences, users
 from app.db import SessionLocal, engine
@@ -15,6 +17,8 @@ from app.services.errors import (
     SnoozeLimitReached,
     ValidationError,
 )
+
+log = logging.getLogger("api")
 
 
 @asynccontextmanager
@@ -50,6 +54,25 @@ async def service_error_handler(request: Request, error: ServiceError) -> JSONRe
         case _:
             code = 400
     return JSONResponse(status_code=code, content={"detail": str(error)})
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request: Request, error: IntegrityError) -> JSONResponse:
+    """Уникальный индекс `(habit_id, scheduled_at)` — это бизнес-правило
+    «одно занятие на привычку и время» (инвариант 7), а не сбой инфраструктуры.
+    Проверить его заранее в сервисе нельзя: между SELECT и INSERT успевает
+    вклиниться ночной джоб, поэтому последнее слово всё равно за БД.
+
+    Мимо service_error_handler ошибка пролетала и превращалась в голый 500
+    с трейсбеком в логах — см. находку 5. Подстраховка, а не замена починке
+    причин: каждый долетевший сюда конфликт стоит разобрать отдельно, поэтому
+    в лог он уходит целиком.
+    """
+    log.warning("конфликт уникальности на %s: %s", request.url.path, error.orig)
+    return JSONResponse(
+        status_code=409,
+        content={"detail": "занятие на это время уже существует"},
+    )
 
 
 @app.get("/health")

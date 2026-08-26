@@ -76,6 +76,34 @@ async def test_неизвестная_таймзона_400(client, db_session):
     assert response.status_code == 400
 
 
+async def test_сошедшиеся_занятия_дают_409_а_не_500(client, db_session):
+    """Находка 5: два занятия на один день с разным scheduled_at пересчёт
+    сводит к одному моменту и упирается в уникальный индекс. Причину дублей
+    сняла находка 4, но старые пары могли остаться в БД, и человек не должен
+    видеть голый 500 — уникальность здесь бизнес-правило, а не сбой."""
+    user = await make_user(db_session, timezone_name="Europe/Moscow")
+    habit = await make_habit(db_session, user, schedule_time=time(7, 30))
+    day = date(2026, 9, 1)
+    for scheduled in (
+        combine_local(day, habit.schedule_time, MOSCOW),
+        combine_local(day, habit.schedule_time, ZoneInfo("Asia/Tokyo")),
+    ):
+        await make_occurrence(
+            db_session,
+            habit,
+            local_date=day,
+            scheduled_at=scheduled,
+            current_due_at=scheduled,
+            status=OccurrenceStatus.pending,
+        )
+
+    response = await client.patch(
+        "/users/me", json={"timezone": "Asia/Tokyo"}, headers=auth_headers(user)
+    )
+
+    assert response.status_code == 409
+
+
 @pytest.mark.xfail(
     reason="находка 3: ручки предпросмотра смены таймзоны ещё нет — «Настройки» "
     "не могут показать, сколько сегодняшних занятий исчезнет до сохранения",
