@@ -1,7 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { api } from '../api/client'
 import type { User } from '../api/types'
+
+/** «1 занятие» / «2 занятия» / «5 занятий». */
+function occurrencesWord(count: number): string {
+  const tail = count % 100
+  if (tail >= 11 && tail <= 14) return 'занятий'
+  switch (count % 10) {
+    case 1:
+      return 'занятие'
+    case 2:
+    case 3:
+    case 4:
+      return 'занятия'
+    default:
+      return 'занятий'
+  }
+}
 
 /** Список IANA-зон из браузера. supportedValuesOf есть не везде, поэтому
 на случай его отсутствия остаётся хотя бы текущая зона и зона браузера —
@@ -24,6 +40,28 @@ export default function SettingsScreen({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [removedToday, setRemovedToday] = useState(0)
+
+  // §8: занятия, чьё новое плановое время уже прошло, при сохранении
+  // удаляются — день исчезает из «Сегодня», из heatmap и из знаменателя
+  // процента за 30 дней. Спросить об этом надо до нажатия, а не после.
+  useEffect(() => {
+    if (timezone === user.timezone) {
+      setRemovedToday(0)
+      return
+    }
+    // Поле редактируется вручную, поэтому задержка: без неё каждая
+    // напечатанная буква даёт запрос, и почти каждый — на битое имя зоны.
+    const timer = window.setTimeout(() => {
+      api
+        .previewTimezone(timezone)
+        .then((preview) => setRemovedToday(preview.removed_today))
+        // Предупреждение не блокирует сохранение, а недописанное имя зоны
+        // законно даёт 400 — молчим и ждём следующего ввода.
+        .catch(() => setRemovedToday(0))
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [timezone, user.timezone])
 
   async function save(event: React.FormEvent) {
     event.preventDefault()
@@ -60,6 +98,13 @@ export default function SettingsScreen({
           По нему считаются день привычки и время напоминания. Уже назначенные
           на будущее занятия пересчитаются.
         </p>
+        {removedToday > 0 && (
+          <p className="warning">
+            ⚠️ По новому времени сегодняшний срок уже прошёл у{' '}
+            {removedToday} {occurrencesWord(removedToday)} — они исчезнут
+            из «Сегодня» и из статистики. Вернуть их не получится.
+          </p>
+        )}
         <button type="submit" disabled={busy || timezone === user.timezone}>
           {busy ? 'Сохраняем…' : 'Сохранить'}
         </button>

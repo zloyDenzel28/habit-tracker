@@ -14,6 +14,7 @@ import type {
   HeatmapDay,
   Occurrence,
   OccurrenceAction,
+  TimezonePreview,
   User,
 } from './types'
 
@@ -84,6 +85,8 @@ export const api = {
 
   getMe: () => request<User>('GET', '/users/me'),
   setTimezone: (timezone: string) => request<User>('PATCH', '/users/me', { timezone }),
+  previewTimezone: (timezone: string) =>
+    request<TimezonePreview>('GET', `/users/timezone-preview?timezone=${encodeURIComponent(timezone)}`),
 
   listHabits: (includeArchived = false) =>
     request<Habit[]>('GET', `/habits?include_archived=${includeArchived}`),

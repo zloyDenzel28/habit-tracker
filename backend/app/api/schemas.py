@@ -34,6 +34,13 @@ class UserTimezoneUpdate(BaseModel):
     timezone: str
 
 
+class TimezonePreviewOut(BaseModel):
+    """Ответ на вопрос «Настроек» до сохранения: сколько сегодняшних занятий
+    исчезнет при переезде в эту таймзону (§8)."""
+
+    removed_today: int
+
+
 class DevLoginOut(BaseModel):
     access_token: str
     token_type: str = "bearer"

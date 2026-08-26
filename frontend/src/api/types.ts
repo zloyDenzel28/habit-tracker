@@ -19,6 +19,12 @@ export interface User {
   created_at: string
 }
 
+/** Что «Настройки» узнают до сохранения таймзоны (§8): сколько сегодняшних
+занятий исчезнет, потому что их новое плановое время уже прошло. */
+export interface TimezonePreview {
+  removed_today: number
+}
+
 export interface DevLogin {
   access_token: string
   token_type: string
