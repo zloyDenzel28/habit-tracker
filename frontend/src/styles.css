@@ -1,0 +1,359 @@
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --line: #e2e5ea;
+  --text: #1f2430;
+  --muted: #6b7280;
+  --accent: #2f6fed;
+
+  /* Цвета статусов из §4. Используются и бейджами, и клетками heatmap. */
+  --done: #3aa76d;
+  --skipped: #e0a02e;
+  --missed: #d9534f;
+  --paused: #9aa3b0;
+  --pending: #c9ced6;
+  --notified: #2f6fed;
+  --snoozed: #8b5cf6;
+  --in-progress: #16a2a2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.app {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 1rem 3rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+h2 {
+  font-size: 1.1rem;
+  margin-top: 2rem;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  font: inherit;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.link {
+  border: none;
+  background: none;
+  color: var(--accent);
+  padding: 0 0.4rem;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+}
+
+/* --- каркас --- */
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.topbar nav {
+  display: flex;
+  gap: 1rem;
+}
+.topbar nav a.active {
+  font-weight: 600;
+  color: var(--text);
+}
+.who {
+  color: var(--muted);
+}
+
+.screen-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.back {
+  display: inline-block;
+  margin-top: 1rem;
+}
+
+.stub,
+.hint {
+  color: var(--muted);
+}
+.hint {
+  font-size: 0.9em;
+  margin: 0.3rem 0 1rem;
+}
+.error {
+  color: var(--missed);
+}
+.warning {
+  background: #fff6e0;
+  border-left: 3px solid var(--skipped);
+  padding: 0.5rem 0.7rem;
+  margin: 0.5rem 0;
+}
+.notice {
+  background: #eaf1ff;
+  border-left: 3px solid var(--accent);
+  padding: 0.5rem 0.7rem;
+  margin: 1rem 0 0;
+}
+
+/* --- карточки --- */
+
+.cards {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+}
+.card.archived {
+  opacity: 0.6;
+}
+.card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.card-head .time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.card-head .title {
+  font-size: 1.05rem;
+  color: var(--text);
+}
+.card-meta {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+.card .actions,
+.habit-form .actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.7rem;
+}
+
+.badge {
+  font-size: 0.78em;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--pending);
+  color: #fff;
+}
+.badge.status-done {
+  background: var(--done);
+}
+.badge.status-skipped {
+  background: var(--skipped);
+}
+.badge.status-missed {
+  background: var(--missed);
+}
+.badge.status-paused {
+  background: var(--paused);
+}
+.badge.status-notified {
+  background: var(--notified);
+}
+.badge.status-snoozed {
+  background: var(--snoozed);
+}
+.badge.status-in_progress {
+  background: var(--in-progress);
+}
+
+/* --- формы --- */
+
+.habit-form,
+.settings {
+  display: grid;
+  gap: 0.8rem;
+  max-width: 30rem;
+}
+.habit-form label,
+.settings label {
+  display: grid;
+  gap: 0.25rem;
+}
+.habit-form .row {
+  display: flex;
+  gap: 0.8rem;
+}
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.8rem 0;
+}
+
+.days {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+.days .day {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.days .day.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pause-form {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.pause-form label {
+  display: grid;
+  gap: 0.25rem;
+}
+.pauses {
+  list-style: none;
+  padding: 0;
+}
+
+/* --- статистика --- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: 0.6rem;
+}
+.metric {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.6rem;
+  text-align: center;
+}
+.metric b {
+  display: block;
+  font-size: 1.4rem;
+}
+.metric span {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+/* Сетка heatmap: семь строк — дни недели, колонки нарастают сами по неделям. */
+.heatmap {
+  display: grid;
+  grid-template-rows: repeat(7, 12px);
+  grid-auto-flow: column;
+  grid-auto-columns: 12px;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+}
+.hm {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--pending);
+}
+.hm-empty {
+  background: var(--line);
+}
+.hm.status-done {
+  background: var(--done);
+}
+.hm.status-skipped {
+  background: var(--skipped);
+}
+.hm.status-missed {
+  background: var(--missed);
+}
+.hm.status-paused {
+  background: var(--paused);
+}
+.legend {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 0.85em;
+  margin-top: 0.5rem;
+}
+.legend span {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.profile {
+  list-style: none;
+  padding: 0;
+  color: var(--muted);
+}
+
+/* --- вход --- */
+
+.login {
+  max-width: 26rem;
+  margin: 15vh auto;
+  padding: 0 1rem;
+  text-align: center;
+}
