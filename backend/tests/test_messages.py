@@ -9,6 +9,8 @@ import uuid
 from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from app.models import MAX_SNOOZE_COUNT, Habit, Occurrence, OccurrenceStatus
 from app.services import messages
 
@@ -69,6 +71,23 @@ def test_кнопка_снуза_есть_и_у_ещё_не_помеченной
     """
     message = messages.reminder(make(OccurrenceStatus.pending), MSK)
     assert "⏰ +5 мин" in labels(message)
+
+
+@pytest.mark.xfail(
+    reason="находка 12: reminder() не добавляет «Выполнил» — набор кнопок на "
+    "notified расходится с вебом, где переход notified -> done разрешён с шага 2",
+    strict=True,
+)
+def test_первое_уведомление_включает_выполнил():
+    """§5 (решение 26.08.2026): равняем по вебу — там «Выполнил» на notified
+    уже есть (COMPLETE_FROM включает notified с шага 2)."""
+    message = messages.reminder(make(OccurrenceStatus.notified), MSK)
+    assert labels(message) == [
+        "▶️ Начал",
+        "⏰ +5 мин",
+        "✅ Выполнил",
+        "🚫 Пропустить сегодня",
+    ]
 
 
 def test_догоняющий_пинг_начавшему_предлагает_не_получилось():
