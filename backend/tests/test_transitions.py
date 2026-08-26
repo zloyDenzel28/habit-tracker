@@ -118,8 +118,12 @@ def test_повторное_нажатие_отличается_от_запре�
 
 
 def test_ночной_джоб_закрывает_только_незавершённое():
-    for status in occ.UNRESOLVED_STATUSES:
+    for status in occ.MISS_FROM:
         assert occ.mark_missed(make(status), at=DUE).status is OccurrenceStatus.missed
+
+    # §6.3: начатое занятие закрывается как skipped, missed для него закрыт.
+    with pytest.raises(InvalidTransition):
+        occ.mark_missed(make(OccurrenceStatus.in_progress, started_at=DUE), at=DUE)
 
     # Пауза не пропуск: приостановленный день просто не считается (§7).
     with pytest.raises(InvalidTransition):

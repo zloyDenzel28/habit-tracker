@@ -38,14 +38,26 @@ OPEN_STATUSES: frozenset[OccurrenceStatus] = frozenset(
     set(OccurrenceStatus) - set(TERMINAL_STATUSES)
 )
 
+# Куда закрытие дня уводит незавершённое занятие (§6.3, уточнение 26.08.2026).
+# Человек не отреагировал вовсе — missed. Нажал «Начал» и не закрыл занятие —
+# skipped: started_at заполнен, реакция была, а missed по §11 означает ровно
+# её отсутствие и потому неизменяем. Та же логика, что у кнопки «Не получилось».
+#
+# Правило живёт здесь, а не в WHERE массового UPDATE: инвариант 4 действует
+# и на массовые операции, статус occurrence решается только в этом модуле.
+MISS_FROM = frozenset(
+    {OccurrenceStatus.pending, OccurrenceStatus.notified, OccurrenceStatus.snoozed}
+)
+ABANDONED_FROM = frozenset({OccurrenceStatus.in_progress})
+
+DAY_CLOSE_TRANSITIONS: tuple[tuple[frozenset[OccurrenceStatus], OccurrenceStatus], ...] = (
+    (MISS_FROM, OccurrenceStatus.missed),
+    (ABANDONED_FROM, OccurrenceStatus.skipped),
+)
+
 # Статусы «день начался, но ещё не закрыт» — их подчищает ночной джоб (§6.3).
-UNRESOLVED_STATUSES: frozenset[OccurrenceStatus] = frozenset(
-    {
-        OccurrenceStatus.pending,
-        OccurrenceStatus.notified,
-        OccurrenceStatus.snoozed,
-        OccurrenceStatus.in_progress,
-    }
+UNRESOLVED_STATUSES: frozenset[OccurrenceStatus] = frozenset().union(
+    *(sources for sources, _ in DAY_CLOSE_TRANSITIONS)
 )
 
 
@@ -157,13 +169,14 @@ def skip(occurrence: Occurrence, *, at: datetime | None = None) -> Occurrence:
 
 
 def mark_missed(occurrence: Occurrence, *, at: datetime | None = None) -> Occurrence:
-    """Ночной джоб закрывает день: всё неотвеченное -> missed.
+    """Закрытие дня: человек не отреагировал вовсе -> missed.
 
-    paused сюда не попадает: приостановленный день не пропущен, он просто
-    не участвует в расчётах (§7).
+    in_progress сюда не попадает: там реакция была, и §6.3 закрывает такое
+    занятие как skipped — см. DAY_CLOSE_TRANSITIONS. paused не попадает тоже:
+    приостановленный день не пропущен, он просто не участвует в расчётах (§7).
     """
     at = ensure_aware(at) if at else now_utc()
-    _transition(occurrence, "miss", UNRESOLVED_STATUSES, OccurrenceStatus.missed)
+    _transition(occurrence, "miss", MISS_FROM, OccurrenceStatus.missed)
     occurrence.finished_at = at
     return occurrence
 
@@ -286,11 +299,12 @@ async def close_local_day(
     before_local_date: date,
     at: datetime | None = None,
 ) -> int:
-    """§6.3: у пользователя наступила полночь — закрываем всё прошлое как missed.
+    """§6.3: у пользователя наступила полночь — закрываем прошедшие дни.
 
-    Массовым UPDATE, а не по одному объекту: за раз может закрываться много дней,
-    а решение принимает WHERE, а не бизнес-правило. Условие по статусам
-    повторяет mark_missed: paused не трогаем.
+    Массовым UPDATE, а не по одному объекту: за раз может закрываться много
+    дней. Но во что закрывать, решает не WHERE, а DAY_CLOSE_TRANSITIONS —
+    по одному запросу на переход, чтобы правило осталось видно в коде сервиса,
+    а не растворилось в SQL (инвариант 4). paused не трогаем ни там, ни там.
 
     Записи, у которых current_due_at ещё в будущем, джоб пропускает (§6.3,
     уточнение от 26.08.2026). Снуз незадолго до полуночи переносит срок в новые
@@ -300,18 +314,21 @@ async def close_local_day(
     пройдёт, а ответа так и не будет.
     """
     at = ensure_aware(at) if at else now_utc()
-    result = await session.execute(
-        update(Occurrence)
-        .where(
-            Occurrence.user_id == user_id,
-            Occurrence.local_date < before_local_date,
-            Occurrence.current_due_at <= at,
-            Occurrence.status.in_(UNRESOLVED_STATUSES),
+    closed = 0
+    for sources, target in DAY_CLOSE_TRANSITIONS:
+        result = await session.execute(
+            update(Occurrence)
+            .where(
+                Occurrence.user_id == user_id,
+                Occurrence.local_date < before_local_date,
+                Occurrence.current_due_at <= at,
+                Occurrence.status.in_(sources),
+            )
+            .values(status=target, finished_at=at)
+            .execution_options(synchronize_session=False)
         )
-        .values(status=OccurrenceStatus.missed, finished_at=at)
-        .execution_options(synchronize_session=False)
-    )
-    return result.rowcount or 0
+        closed += result.rowcount or 0
+    return closed
 
 
 async def get_for_user(

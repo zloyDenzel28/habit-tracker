@@ -1,15 +1,12 @@
 """close_local_day (§6.3), ходящий в Postgres — массовый UPDATE, не по одному
 объекту, поэтому test_transitions.py его проверить не мог.
 
-Обе xfail-находки чинят одну и ту же функцию (см. HANDOFF.md: «6 и 11 правят
-одну и ту же функцию, разносить их по разным сессиям не стоит»).
+Находки 6 и 11 чинили одну и ту же функцию и закрыты вместе.
 """
 
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
-
-import pytest
 
 from app.models import Occurrence, OccurrenceStatus
 from app.services.occurrences import UNRESOLVED_STATUSES, close_local_day
@@ -141,13 +138,9 @@ async def test_снуз_за_полночь_доживает_до_своего_�
     assert await _closed_status(db_session, occurrence) is OccurrenceStatus.snoozed
 
 
-@pytest.mark.xfail(
-    reason="находка 11: закрытие дня вешает missed на in_progress, хотя "
-    "started_at заполнен — человек отреагировал, и по §11 missed для него "
-    "неправильный статус (нужен skipped, как у «Не получилось»)",
-    strict=True,
-)
 async def test_брошенный_in_progress_закрывается_как_skipped(db_session):
+    """§6.3: started_at заполнен — человек отреагировал, и missed по §11
+    для него неправильный статус."""
     user = await make_user(db_session)
     habit = await make_habit(db_session, user)
     occurrence = await make_occurrence(
