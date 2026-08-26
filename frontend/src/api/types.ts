@@ -17,6 +17,8 @@ export interface User {
   first_name: string
   timezone: string
   created_at: string
+  /** Юзернейм бота из TELEGRAM_BOT_USERNAME, для ссылки t.me/<username>. */
+  bot_username: string | null
 }
 
 /** Что «Настройки» узнают до сохранения таймзоны (§8): сколько сегодняшних

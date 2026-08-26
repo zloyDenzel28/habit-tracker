@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     # Опционален: без токена api и worker работают, bot стартует заглушкой.
     telegram_bot_token: str | None = None
 
+    # Юзернейм бота без @ — для ссылки t.me/<username> на «Настройках».
+    # Не читается из токена (это потребовало бы дёргать Telegram API из api-процесса
+    # ради статичной строки), задаётся вручную тем же человеком, что получал токен.
+    telegram_bot_username: str | None = None
+
     # Локальный вход в обход Telegram Login Widget (§12.4 спеки).
     dev_auth: bool = True
 

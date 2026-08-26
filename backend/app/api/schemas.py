@@ -12,7 +12,8 @@ from datetime import date, datetime, time
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models import Occurrence, OccurrenceStatus
+from app.config import settings
+from app.models import Occurrence, OccurrenceStatus, User
 from app.services import occurrences as occurrences_service
 from app.services.constants import DEFAULT_DURATION_MINUTES
 
@@ -28,6 +29,22 @@ class UserOut(BaseModel):
     first_name: str
     timezone: str
     created_at: datetime
+    # Не поле пользователя, а конфиг приложения (TELEGRAM_BOT_USERNAME) — но
+    # это единственная ручка, которую фронт грузит при каждом входе, и заводить
+    # под одну строку отдельный эндпоинт незачем. Заполняется через user_out().
+    bot_username: str | None = None
+
+
+def user_out(user: User) -> UserOut:
+    """Собрать UserOut и подмешать конфиг, которого нет на ORM-объекте.
+
+    Три ручки отдают профиль (`/auth/dev-login`, `GET/PATCH /users/me`),
+    и `bot_username` должен быть на месте у всех трёх — иначе, например,
+    смена таймзоны молча стирала бы ссылку на бота из состояния фронта
+    до следующей перезагрузки."""
+    out = UserOut.model_validate(user)
+    out.bot_username = settings.telegram_bot_username
+    return out
 
 
 class UserTimezoneUpdate(BaseModel):

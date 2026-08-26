@@ -123,8 +123,21 @@ export default function SettingsScreen({
       </p>
       <ol className="steps">
         <li>
-          Откройте в Telegram своего бота — того, чей токен лежит
-          в <code>TELEGRAM_BOT_TOKEN</code>.
+          {user.bot_username !== null ? (
+            <>
+              Откройте{' '}
+              <a href={`https://t.me/${user.bot_username}`} target="_blank" rel="noreferrer">
+                @{user.bot_username}
+              </a>{' '}
+              в Telegram.
+            </>
+          ) : (
+            <>
+              Откройте в Telegram своего бота — того, чей токен лежит
+              в <code>TELEGRAM_BOT_TOKEN</code>. Кликабельную ссылку сюда
+              добавит <code>TELEGRAM_BOT_USERNAME</code> в <code>.env</code>.
+            </>
+          )}
         </li>
         <li>
           Нажмите «Старт» или отправьте <code>/start</code>.

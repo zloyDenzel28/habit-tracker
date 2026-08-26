@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import SessionDep
-from app.api.schemas import DevLoginOut, UserOut
+from app.api.schemas import DevLoginOut, user_out
 from app.config import settings
 from app.services import users
 
@@ -33,4 +33,4 @@ async def dev_login(session: SessionDep) -> DevLoginOut:
             status.HTTP_404_NOT_FOUND,
             "сид-пользователь не найден — прогони python -m app.fixtures.seed",
         )
-    return DevLoginOut(access_token=str(user.id), user=UserOut.model_validate(user))
+    return DevLoginOut(access_token=str(user.id), user=user_out(user))
