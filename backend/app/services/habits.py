@@ -275,15 +275,66 @@ async def active_pauses(session: AsyncSession, habit_id: uuid.UUID) -> Sequence[
 # --- таймзона пользователя ------------------------------------------------
 
 
+# §8: переезжают занятия, которые ещё только запланированы. paused — такое же
+# отложенное будущее, как pending: снятие паузы вернёт день в работу, и время
+# у него должно быть уже по новой таймзоне. Именно paused, оставленный со
+# старым временем, и раздваивал привычку после переезда (находка 4).
+RESCHEDULED_ON_TIMEZONE_CHANGE = (OccurrenceStatus.pending, OccurrenceStatus.paused)
+
+
+async def _plan_timezone_change(
+    session: AsyncSession, user: User, tz: ZoneInfo
+) -> list[tuple[Occurrence, datetime]]:
+    """Что станет с занятиями пользователя после переезда в tz: пары
+    «запись -> новое плановое время». Ничего не меняет, поэтому на этом же
+    плане работает и предпросмотр для «Настроек»."""
+    occurrences = (
+        await session.scalars(
+            select(Occurrence)
+            .where(
+                Occurrence.user_id == user.id,
+                Occurrence.status.in_(RESCHEDULED_ON_TIMEZONE_CHANGE),
+            )
+            .options(joinedload(Occurrence.habit, innerjoin=True))
+        )
+    ).all()
+    return [
+        (o, combine_local(o.local_date, o.habit.schedule_time, tz)) for o in occurrences
+    ]
+
+
+async def preview_timezone_change(
+    session: AsyncSession, user: User, timezone_name: str, *, now: datetime | None = None
+) -> int:
+    """§8: сколько сегодняшних занятий исчезнет, если сохранить эту таймзону.
+
+    Читающая ручка для «Настроек». Удаление необратимо и вымывает день из
+    «Сегодня», из heatmap и из знаменателя процента за 30 дней, поэтому
+    человек должен узнать о нём до нажатия, а не после.
+    """
+    now = ensure_aware(now) if now else now_utc()
+    tz = resolve_tz(timezone_name)
+    # «Сегодня» — тот день, который человек сейчас видит на экране, то есть
+    # по нынешней таймзоне профиля. Её тут не меняем: ручка только читает.
+    today = local_date_of(now, resolve_tz(user.timezone))
+
+    plan = await _plan_timezone_change(session, user, tz)
+    return sum(
+        1
+        for occurrence, scheduled_at in plan
+        if scheduled_at <= now and occurrence.local_date == today
+    )
+
+
 async def change_user_timezone(
     session: AsyncSession, user: User, timezone_name: str, *, now: datetime | None = None
 ) -> int:
-    """§8: пересобирает pending occurrences под новую таймзону.
+    """§8: пересобирает pending и paused occurrences под новую таймзону.
 
-    Пересчитываются только pending. notified, snoozed и in_progress не трогаем:
-    процесс уже запущен, сдвиг на лету означал бы либо второе уведомление,
-    либо потерянный таймер. Терминальные записи неизменны — local_date
-    фиксирует день, в который событие реально произошло.
+    notified, snoozed и in_progress не трогаем: процесс уже запущен, сдвиг
+    на лету означал бы либо второе уведомление, либо потерянный таймер.
+    Терминальные записи неизменны — local_date фиксирует день, в который
+    событие реально произошло.
 
     Возвращает число пересчитанных записей.
     """
@@ -291,30 +342,17 @@ async def change_user_timezone(
     tz = resolve_tz(timezone_name)
     user.timezone = timezone_name
 
-    pending = (
-        await session.scalars(
-            select(Occurrence)
-            .where(
-                Occurrence.user_id == user.id,
-                Occurrence.status == OccurrenceStatus.pending,
-            )
-            .options(joinedload(Occurrence.habit, innerjoin=True))
-        )
-    ).all()
-
     touched = 0
-    for occurrence in pending:
-        scheduled_at = combine_local(
-            occurrence.local_date, occurrence.habit.schedule_time, tz
-        )
+    for occurrence, scheduled_at in await _plan_timezone_change(session, user, tz):
         if scheduled_at <= now:
             # После переезда плановое время этого дня уже прошло. Оставить —
-            # значит получить уведомление в ту же секунду; удаляем по тому же
-            # правилу, по которому генератор не создаёт записи в прошлом.
+            # значит получить уведомление в ту же секунду (а для paused — в ту
+            # же секунду после снятия паузы); удаляем по тому же правилу, по
+            # которому генератор не создаёт записей в прошлом.
             await session.delete(occurrence)
             continue
         occurrence.scheduled_at = scheduled_at
-        # У pending снузов не бывает: снуз возможен только из notified.
+        # Снузов тут не бывает: снуз возможен только из notified.
         occurrence.current_due_at = scheduled_at
         touched += 1
 

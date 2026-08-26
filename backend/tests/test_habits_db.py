@@ -122,11 +122,6 @@ async def test_notified_snoozed_in_progress_не_трогаются(db_session):
         )
 
 
-@pytest.mark.xfail(
-    reason="находка 4: change_user_timezone не пересчитывает paused вместе "
-    "с pending — снятие паузы после переезда создаёт дубль на тот же день",
-    strict=True,
-)
 async def test_paused_пересчитывается_вместе_с_pending(db_session):
     user = await make_user(db_session, timezone_name="Europe/Moscow")
     habit = await make_habit(db_session, user, schedule_time=time(7, 30))
