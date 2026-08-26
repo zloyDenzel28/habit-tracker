@@ -70,8 +70,8 @@ def reminder(occurrence: Occurrence, tz: ZoneInfo) -> Message:
     """Первое уведомление в момент current_due_at (§5)."""
     buttons = [_button("▶️ Начал", ACTION_START, occurrence)]
     if occurrence.snooze_count < MAX_SNOOZE_COUNT:
-        # §4: на шестой раз кнопка не показывается — остаются «Начал»
-        # и «Пропустить».
+        # §4: на шестой раз кнопка не показывается — остаются «Начал»,
+        # «Выполнил» и «Пропустить».
         #
         # Спрашиваем только про счётчик, а не про occurrences.can_snooze:
         # тот проверяет ещё и статус notified, а сообщение собирается до
@@ -79,6 +79,11 @@ def reminder(occurrence: Occurrence, tz: ZoneInfo) -> Message:
         # потом помечает). Вопрос здесь другой — «остались ли снузы»,
         # потому что reminder() вызывается ровно для уходящего уведомления.
         buttons.append(_button("⏰ +5 мин", ACTION_SNOOZE, occurrence))
+    # §5 (решение 26.08.2026): «Выполнил» есть и здесь. Переход notified -> done
+    # разрешён с шага 2 — человек мог сделать зарядку и только потом посмотреть
+    # в телефон, — но кнопка была только в вебе, и одно занятие выглядело
+    # по-разному в двух интерфейсах вопреки §9. Равняем по вебу.
+    buttons.append(_button("✅ Выполнил", ACTION_DONE, occurrence))
     buttons.append(_button("🚫 Пропустить сегодня", ACTION_SKIP, occurrence))
     return Message(
         text=(
