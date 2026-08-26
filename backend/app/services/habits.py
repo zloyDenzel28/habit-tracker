@@ -296,15 +296,50 @@ async def cancel_pause(
     return pause
 
 
-async def active_pauses(session: AsyncSession, habit_id: uuid.UUID) -> Sequence[HabitPause]:
-    """Незакрытые паузы привычки — для экрана привычки и для кнопки «снять»."""
+async def active_pauses(
+    session: AsyncSession, habit_id: uuid.UUID, tz: ZoneInfo, *, now: datetime | None = None
+) -> Sequence[HabitPause]:
+    """Незакрытые паузы привычки, которые ещё идут — для экрана привычки
+    и для кнопки «снять». Пауза с прошедшей `ends_on` в список не входит
+    (находка 15): снимать досрочно уже нечего."""
+    today = local_date_of(ensure_aware(now) if now else now_utc(), tz)
     return (
         await session.scalars(
             select(HabitPause)
-            .where(HabitPause.habit_id == habit_id, HabitPause.cancelled_at.is_(None))
+            .where(
+                HabitPause.habit_id == habit_id,
+                HabitPause.cancelled_at.is_(None),
+                HabitPause.ends_on >= today,
+            )
             .order_by(HabitPause.starts_on)
         )
     ).all()
+
+
+async def paused_until_today(
+    session: AsyncSession,
+    habit_ids: Iterable[uuid.UUID],
+    tz: ZoneInfo,
+    *,
+    now: datetime | None = None,
+) -> dict[uuid.UUID, date]:
+    """Привычки из `habit_ids`, у которых на сегодня активна пауза, и дата,
+    до которой она идёт — метка «на паузе до …» на «Моих привычках»
+    (находка 13). Досрочно снятая пауза не попадёт: `cancelled_at` у неё
+    уже проставлен."""
+    ids = list(habit_ids)
+    if not ids:
+        return {}
+    today = local_date_of(ensure_aware(now) if now else now_utc(), tz)
+    rows = await session.execute(
+        select(HabitPause.habit_id, HabitPause.ends_on).where(
+            HabitPause.habit_id.in_(ids),
+            HabitPause.cancelled_at.is_(None),
+            HabitPause.starts_on <= today,
+            HabitPause.ends_on >= today,
+        )
+    )
+    return dict(rows.all())
 
 
 # --- таймзона пользователя ------------------------------------------------

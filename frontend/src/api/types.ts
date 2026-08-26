@@ -44,6 +44,8 @@ export interface Habit {
   streak_reset_on: string | null
   created_at: string
   updated_at: string
+  /** Дата окончания активной сегодня паузы (находка 13). Только в GET /habits. */
+  paused_until: string | null
 }
 
 /** Тело POST /habits и PATCH /habits/{id} — при правке все поля опциональны. */

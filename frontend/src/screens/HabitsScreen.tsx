@@ -3,10 +3,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type { Habit } from '../api/types'
 import HabitForm from '../components/HabitForm'
-import { formatDays, trimSeconds } from '../format'
+import { formatDate, formatDays, trimSeconds } from '../format'
 
 /** Экран «Мои привычки» (§9): список, создание, редактирование, архивация.
-Пауза живёт на экране привычки — там же, где серия, которую она может обнулить. */
+Карточка только показывает, что привычка на паузе; сама форма заморозки
+живёт на экране привычки — там же, где серия, которую пауза может обнулить. */
 export default function HabitsScreen() {
   const [habits, setHabits] = useState<Habit[] | null>(null)
   const [includeArchived, setIncludeArchived] = useState(false)
@@ -83,6 +84,9 @@ export default function HabitsScreen() {
                   {habit.title}
                 </a>
                 {habit.is_archived && <span className="badge">в архиве</span>}
+                {habit.paused_until !== null && (
+                  <span className="badge status-paused">на паузе до {formatDate(habit.paused_until)}</span>
+                )}
               </div>
               <div className="card-meta">
                 {formatDays(habit.schedule_days)} · {habit.duration_minutes} мин

@@ -85,6 +85,11 @@ class HabitOut(BaseModel):
     streak_reset_on: date | None
     created_at: datetime
     updated_at: datetime
+    # Дата окончания активной сегодня паузы (находка 13) — считает бэк
+    # (инвариант 4), список привычек не должен сам решать, идёт ли пауза.
+    # Заполняется только в GET /habits; на остальных ручках остаётся None,
+    # там пауза видна списком на экране привычки.
+    paused_until: date | None = None
 
 
 class HabitOverlapOut(BaseModel):

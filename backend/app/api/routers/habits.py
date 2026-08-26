@@ -42,7 +42,14 @@ async def list_habits(
     user: CurrentUser, session: SessionDep, include_archived: bool = False
 ) -> list[HabitOut]:
     items = await habits.habits_of_user(session, user.id, include_archived=include_archived)
-    return [HabitOut.model_validate(h) for h in items]
+    tz = resolve_tz(user.timezone)
+    paused_until = await habits.paused_until_today(session, (h.id for h in items), tz)
+    result = []
+    for h in items:
+        out = HabitOut.model_validate(h)
+        out.paused_until = paused_until.get(h.id)
+        result.append(out)
+    return result
 
 
 @router.post("", response_model=HabitOut, status_code=status.HTTP_201_CREATED)
@@ -128,8 +135,9 @@ async def restore_habit(habit: OwnedHabit, user: CurrentUser, session: SessionDe
 
 
 @router.get("/{habit_id}/pauses", response_model=list[HabitPauseOut])
-async def list_pauses(habit: OwnedHabit, session: SessionDep) -> list[HabitPauseOut]:
-    items = await habits.active_pauses(session, habit.id)
+async def list_pauses(habit: OwnedHabit, user: CurrentUser, session: SessionDep) -> list[HabitPauseOut]:
+    tz = resolve_tz(user.timezone)
+    items = await habits.active_pauses(session, habit.id, tz)
     return [HabitPauseOut.model_validate(p) for p in items]
 
 

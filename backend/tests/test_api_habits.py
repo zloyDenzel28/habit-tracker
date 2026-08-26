@@ -209,6 +209,48 @@ async def test_проверка_пересечений(client, db_session):
     assert "Тренировка" in titles
 
 
+async def test_список_пауз_скрывает_завершённую(client, db_session):
+    """Находка 15: пауза, закончившаяся давно, не должна предлагать
+    «снять досрочно» — только та, что ещё идёт."""
+    user = await make_user(db_session)
+    habit = await make_habit(db_session, user)
+    today = date.today()
+    await make_pause(
+        db_session,
+        habit,
+        starts_on=today - timedelta(days=40),
+        ends_on=today - timedelta(days=10),
+    )
+    ongoing = await make_pause(
+        db_session, habit, starts_on=today - timedelta(days=5), ends_on=today + timedelta(days=5)
+    )
+
+    response = await client.get(f"/habits/{habit.id}/pauses", headers=auth_headers(user))
+
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()] == [str(ongoing.id)]
+
+
+async def test_список_привычек_показывает_метку_на_паузе(client, db_session):
+    """Находка 13: «Мои привычки» отмечают привычку на паузе датой
+    окончания, активную привычку — нет."""
+    user = await make_user(db_session)
+    paused_habit = await make_habit(db_session, user, title="Медитация")
+    active_habit = await make_habit(db_session, user, title="Зарядка")
+    today = date.today()
+    ends_on = today + timedelta(days=5)
+    await make_pause(
+        db_session, paused_habit, starts_on=today - timedelta(days=5), ends_on=ends_on
+    )
+
+    response = await client.get("/habits", headers=auth_headers(user))
+
+    assert response.status_code == 200
+    by_title = {row["title"]: row["paused_until"] for row in response.json()}
+    assert by_title["Медитация"] == ends_on.isoformat()
+    assert by_title["Зарядка"] is None
+
+
 async def test_heatmap_красит_все_дни_длинной_паузы(client, db_session):
     user = await make_user(db_session)
     habit = await make_habit(db_session, user)
