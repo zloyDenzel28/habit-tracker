@@ -108,7 +108,8 @@ async def close_days(session_factory: SessionFactory) -> int:
     async with session_factory() as session, session.begin():
         closed = await occurrences.close_finished_days(session)
     if closed:
-        log.info("закрытие дня: переведено в missed %d", closed)
+        # Не «в missed»: брошенный in_progress уходит в skipped (§6.3).
+        log.info("закрытие дня: закрыто занятий %d", closed)
     else:
         log.debug("закрытие дня: незакрытых записей нет")
     return closed
