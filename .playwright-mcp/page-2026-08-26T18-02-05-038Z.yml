@@ -1,0 +1,47 @@
+- generic [ref=e41]:
+  - banner [ref=e42]:
+    - navigation [ref=e43]:
+      - link "Сегодня" [ref=e44] [cursor=pointer]:
+        - /url: "#/today"
+      - link "Мои привычки" [ref=e45] [cursor=pointer]:
+        - /url: "#/habits"
+      - link "Настройки" [ref=e46] [cursor=pointer]:
+        - /url: "#/settings"
+    - generic [ref=e47]:
+      - text: Тестовый
+      - button "выйти" [ref=e48] [cursor=pointer]
+  - paragraph [ref=e49]:
+    - text: Часовой пояс в профиле — Europe/Moscow, а браузер показывает Asia/Yekaterinburg. Расписание считается по профилю.
+    - link "Изменить" [ref=e50] [cursor=pointer]:
+      - /url: "#/settings"
+  - main [ref=e51]:
+    - generic [ref=e52]:
+      - heading "Настройки" [level=1] [ref=e53]
+      - generic [ref=e54]:
+        - generic [ref=e55]:
+          - text: Часовой пояс
+          - combobox "Часовой пояс" [active] [ref=e56]: Asia/Tokyo
+        - paragraph [ref=e57]: По нему считаются день привычки и время напоминания. Уже назначенные на будущее занятия пересчитаются.
+        - paragraph [ref=e74]: "⚠️ 1 занятие исчезнет из «Сегодня» и из статистики: по новому времени сегодняшний срок уже прошёл. Отменить это будет нельзя."
+        - button "Сохранить" [ref=e58] [cursor=pointer]
+      - heading "Уведомления" [level=2] [ref=e59]
+      - generic [ref=e60]:
+        - text: Канал
+        - combobox "Канал" [disabled] [ref=e61]:
+          - option "Telegram" [selected]
+      - paragraph [ref=e62]: Других каналов в MVP нет — поле оставлено на будущее.
+      - paragraph [ref=e63]: "Telegram не разрешает боту написать первым, пока вы сами не начали диалог. Поэтому один раз это нужно сделать вручную:"
+      - list [ref=e64]:
+        - listitem [ref=e65]:
+          - text: Откройте в Telegram своего бота — того, чей токен лежит в
+          - code [ref=e66]: TELEGRAM_BOT_TOKEN
+          - text: .
+        - listitem [ref=e67]:
+          - text: Нажмите «Старт» или отправьте
+          - code [ref=e68]: /start
+          - text: .
+      - paragraph [ref=e69]: "Без этого напоминания не придут, и в интерфейсе это никак не видно: отказ Telegram попадает только в логи воркера. Если уведомлений нет — проверку стоит начинать отсюда."
+      - heading "Профиль" [level=2] [ref=e70]
+      - list [ref=e71]:
+        - listitem [ref=e72]: "Имя: Тестовый"
+        - listitem [ref=e73]: "Telegram: seed_user"

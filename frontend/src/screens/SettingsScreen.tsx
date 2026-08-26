@@ -3,20 +3,16 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type { User } from '../api/types'
 
-/** «1 занятие» / «2 занятия» / «5 занятий». */
-function occurrencesWord(count: number): string {
-  const tail = count % 100
-  if (tail >= 11 && tail <= 14) return 'занятий'
-  switch (count % 10) {
-    case 1:
-      return 'занятие'
-    case 2:
-    case 3:
-    case 4:
-      return 'занятия'
-    default:
-      return 'занятий'
-  }
+/** «1 занятие исчезнет» / «2 занятия исчезнут» / «5 занятий исчезнут».
+Слово и глагол вместе: по отдельности они разъезжаются на единице. */
+function removedPhrase(count: number): string {
+  // 11-14 ведут себя как «много» вопреки последней цифре: 11, 111, 1011.
+  const teen = count % 100 >= 11 && count % 100 <= 14
+  const last = count % 10
+  const one = !teen && last === 1
+  const few = !teen && last >= 2 && last <= 4
+  const word = one ? 'занятие' : few ? 'занятия' : 'занятий'
+  return `${count} ${word} ${one ? 'исчезнет' : 'исчезнут'}`
 }
 
 /** Список IANA-зон из браузера. supportedValuesOf есть не везде, поэтому
@@ -100,9 +96,9 @@ export default function SettingsScreen({
         </p>
         {removedToday > 0 && (
           <p className="warning">
-            ⚠️ По новому времени сегодняшний срок уже прошёл у{' '}
-            {removedToday} {occurrencesWord(removedToday)} — они исчезнут
-            из «Сегодня» и из статистики. Вернуть их не получится.
+            ⚠️ {removedPhrase(removedToday)} из «Сегодня» и из статистики:
+            по новому времени сегодняшний срок уже прошёл. Отменить это
+            будет нельзя.
           </p>
         )}
         <button type="submit" disabled={busy || timezone === user.timezone}>
