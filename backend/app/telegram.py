@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.notifier import Button
@@ -58,13 +59,38 @@ class TelegramNotifier:
     def __init__(self, bot: Bot) -> None:
         self._bot = bot
 
-    async def send(self, user: "User", text: str, buttons: list[Button]) -> None:
+    async def send(self, user: "User", text: str, buttons: list[Button]) -> int | None:
         # telegram_id пользователя — он же chat_id личной переписки с ботом.
         # Написать первым Telegram не даст, пока человек не отправил /start:
         # это вернётся TelegramForbiddenError, и джоб отложит отправку до
         # следующего тика, не проставив notified_at.
-        await self._bot.send_message(
+        message = await self._bot.send_message(
             chat_id=user.telegram_id,
             text=text,
             reply_markup=keyboard(buttons),
         )
+        # Понадобится, чтобы погасить это сообщение, когда занятие закроют
+        # из веба: дотянуться до него иначе нечем (находка 2).
+        return message.message_id
+
+    async def close(self, user: "User", message_id: int, text: str) -> bool:
+        """Дописывает итог и убирает кнопки. См. протокол в app/notifier.py.
+
+        Bot API не умеет «убрать кнопки, оставив текст как есть» одним вызовом
+        с сохранением содержимого: editMessageText требует полный новый текст.
+        Поэтому текст мы храним снимком в sent_messages, а не пересобираем.
+        """
+        try:
+            await self._bot.edit_message_text(
+                chat_id=user.telegram_id,
+                message_id=message_id,
+                text=text,
+                reply_markup=None,
+            )
+        except (TelegramBadRequest, TelegramForbiddenError) as error:
+            # Сообщение старше 48 часов, удалено, не изменилось или человек
+            # заблокировал бота. Всё это навсегда: повтор на каждом тике
+            # только копил бы одни и те же строки в логе. Занятие при этом
+            # уже закрыто в БД — врёт только чат.
+            log.warning("не удалось погасить сообщение %s: %s", message_id, error)
+        return True

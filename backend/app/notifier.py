@@ -26,7 +26,22 @@ class Button:
 
 
 class Notifier(Protocol):
-    async def send(self, user: "User", text: str, buttons: list[Button]) -> None: ...
+    async def send(self, user: "User", text: str, buttons: list[Button]) -> int | None:
+        """Отправляет сообщение. Возвращает id, по которому его можно закрыть.
+
+        None означает «закрывать нечего»: реализация не умеет редактировать
+        уже отправленное (LogNotifier) — тогда и запоминать нечего.
+        """
+        ...
+
+    async def close(self, user: "User", message_id: int, text: str) -> bool:
+        """Заменяет текст сообщения и убирает кнопки.
+
+        True — считать закрытым: либо отредактировали, либо транспорт отказал
+        навсегда и повторять бессмысленно. Временный сбой поднимает исключение,
+        и вызывающий попробует на следующем тике.
+        """
+        ...
 
 
 class LogNotifier:
@@ -41,7 +56,7 @@ class LogNotifier:
     def __init__(self, logger: logging.Logger | None = None) -> None:
         self._log = logger or logging.getLogger("notifier")
 
-    async def send(self, user: "User", text: str, buttons: list[Button]) -> None:
+    async def send(self, user: "User", text: str, buttons: list[Button]) -> int | None:
         self._log.info(
             "СООБЩЕНИЕ -> %s (tg %s): %s | кнопки: [%s]",
             user.first_name,
@@ -50,3 +65,16 @@ class LogNotifier:
             text.replace("\n", " ⏎ "),
             "] [".join(f"{b.text} = {b.callback_data}" for b in buttons),
         )
+        # Строчку в логе не отредактируешь, поэтому и запоминать нечего:
+        # вызывающий на None просто не заводит запись в sent_messages.
+        return None
+
+    async def close(self, user: "User", message_id: int, text: str) -> bool:
+        self._log.info(
+            "ЗАКРЫТО %s -> %s (tg %s): %s",
+            message_id,
+            user.first_name,
+            user.telegram_id,
+            text.replace("\n", " ⏎ "),
+        )
+        return True
