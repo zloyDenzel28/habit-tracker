@@ -39,7 +39,7 @@
 | `db` | PostgreSQL 16 — хранилище данных |
 | `migrate` | одноразовый сервис, применяет миграции Alembic перед стартом остальных процессов и завершается |
 | `api` | FastAPI — REST для фронта |
-| `worker` | APScheduler в отдельном процессе — периодические задачи: генерация occurrences по расписанию, уведомления, догоняющие пинги, закрытие дня |
+| `worker` | APScheduler в отдельном процессе — периодические задачи: генерация occurrences по расписанию, уведомления, догоняющие пинги, гашение отвеченных сообщений, закрытие дня |
 | `bot` | aiogram в режиме polling — принимает нажатия кнопок в Telegram и записывает результат в БД |
 | `web` | React + Vite + TypeScript, дев-сервер с hot reload |
 
@@ -48,7 +48,7 @@
 ## Куда смотреть при отладке
 
 ```bash
-docker compose logs -f worker      # джобы планировщика: генерация occurrences, уведомления, закрытие дня
+docker compose logs -f worker      # джобы планировщика: генерация occurrences, уведомления, гашение сообщений, закрытие дня
 docker compose logs -f bot         # нажатия кнопок в Telegram
 docker compose logs -f api         # запросы фронта
 docker compose exec db psql -U postgres -d habits   # прямой доступ к БД
