@@ -278,8 +278,13 @@ async def test_пауза_без_даты_окончания_ставится_н
     user = await make_user(db_session, timezone_name="Europe/Moscow")
     habit = await make_habit(db_session, user)
     today = date(2026, 8, 26)
+    # now передаём явно: без него pause_habit берёт «сегодня» с настоящих
+    # часов, и с 27.08.2026 эта пауза стала паузой задним числом (гард
+    # находки 8). Тест падал не потому, что сломался код, а потому, что
+    # наступил следующий день.
+    now = combine_local(today, time(9, 0), MOSCOW)
 
-    pause = await pause_habit(db_session, habit, starts_on=today)
+    pause = await pause_habit(db_session, habit, starts_on=today, now=now)
 
     assert pause.ends_on == today + timedelta(days=7)
 

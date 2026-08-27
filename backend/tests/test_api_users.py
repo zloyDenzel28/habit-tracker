@@ -1,16 +1,17 @@
-"""GET/PATCH /users/me (§9 «Настройки»): профиль и смена таймзоны."""
+﻿"""GET/PATCH /users/me (§9 «Настройки»): профиль и смена таймзоны."""
 
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from app.models import OccurrenceStatus
-from app.services.timeutils import combine_local
+from app.services.timeutils import combine_local, local_date_of, now_utc, to_tz
 from tests.conftest import auth_headers
 from tests.factories import make_habit, make_occurrence, make_user
 from zoneinfo import ZoneInfo
 
 MOSCOW = ZoneInfo("Europe/Moscow")
+TOKYO = ZoneInfo("Asia/Tokyo")
 
 
 async def test_без_токена_401(client):
@@ -105,13 +106,29 @@ async def test_сошедшиеся_занятия_дают_409_а_не_500(clie
 async def test_предпросмотр_смены_таймзоны_показывает_число_удаляемых_занятий(
     client, db_session
 ):
+    """Ручка читающая, `now` в неё не передать — значит данные считаем от
+    настоящих часов, а не от календарной даты.
+
+    Раньше здесь стояло 26.08.2026 и время 19:00: тест был зелёным только в
+    этот день и только после 10:00 UTC. Ловушка описана в HANDOFF и сработала
+    ровно так, как там написано.
+
+    Расписание берём равным «час назад по Токио». Тогда занятие сегодняшнего
+    (по Москве) дня после переезда в Токио гарантированно оказывается в
+    прошлом: Токио впереди Москвы, поэтому этот момент либо тот же час назад,
+    либо ещё на сутки раньше — и то и другое `<= now`.
+    """
     user = await make_user(db_session, timezone_name="Europe/Moscow")
-    habit = await make_habit(db_session, user, schedule_time=time(19, 0))
-    scheduled = combine_local(date(2026, 8, 26), habit.schedule_time, MOSCOW)
+    now = now_utc()
+    today = local_date_of(now, MOSCOW)
+    schedule_time = to_tz(now - timedelta(hours=1), TOKYO).time().replace(microsecond=0)
+
+    habit = await make_habit(db_session, user, schedule_time=schedule_time)
+    scheduled = combine_local(today, habit.schedule_time, MOSCOW)
     await make_occurrence(
         db_session,
         habit,
-        local_date=date(2026, 8, 26),
+        local_date=today,
         scheduled_at=scheduled,
         current_due_at=scheduled,
         status=OccurrenceStatus.pending,
