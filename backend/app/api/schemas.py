@@ -17,6 +17,20 @@ from app.models import Occurrence, OccurrenceStatus, User
 from app.services import occurrences as occurrences_service
 from app.services.constants import DEFAULT_DURATION_MINUTES
 
+# --- ошибки -----------------------------------------------------------------
+
+
+class ErrorOut(BaseModel):
+    """Форма любой ошибки этого API.
+
+    Ровно то, что отдают оба обработчика в app/api/main.py и HTTPException:
+    объект с единственным полем detail. Отдельной схемой — чтобы в OpenAPI
+    у кодов ошибок было тело, а не пустой ответ (см. app/api/responses.py).
+    """
+
+    detail: str
+
+
 # --- пользователь / вход ----------------------------------------------------
 
 
