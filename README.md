@@ -4,6 +4,8 @@
 
 Полная спецификация — в [`docs/requirements.md`](docs/requirements.md), он источник истины. Заметки о ходе разработки и архитектурные инварианты — в [`HANDOFF.md`](HANDOFF.md) и [`CLAUDE.md`](CLAUDE.md).
 
+Как устроено внутри: [`docs/architecture.md`](docs/architecture.md) — C4 и сиквенсы ключевых сценариев, [`docs/erd.md`](docs/erd.md) — модель данных. Диаграммы на PlantUML, GitHub их в markdown не рендерит — чем смотреть картинками, написано в начале `architecture.md`.
+
 ## Как поднять
 
 Всё приложение запускается только через Docker Compose — локальной установки Python/Node не требуется.
