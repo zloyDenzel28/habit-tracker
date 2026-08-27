@@ -2,71 +2,146 @@
 
 Источник — `backend/app/models/`. При любом расхождении с кодом верить коду, не этому файлу.
 
-Ключевой инвариант виден прямо в диаграмме: у `HABIT` нет ни одного поля статуса
+Ключевой инвариант виден прямо в диаграмме: у `habits` нет ни одного поля статуса
 или времени выполнения — только шаблон расписания и метаданные. Весь статус
 (`status`) и все временные метки выполнения (`notified_at`, `followup_sent_at`,
-`started_at`, `finished_at`) лежат на `OCCURRENCE`.
+`started_at`, `finished_at`) лежат на `occurrences`.
 
-```mermaid
-erDiagram
-    USER ||--o{ HABIT : "создаёт"
-    USER ||--o{ OCCURRENCE : "владеет (денормализация user_id)"
-    HABIT ||--o{ OCCURRENCE : "порождает выполнения"
-    HABIT ||--o{ HABIT_PAUSE : "ставится на паузу"
+Диаграмма — PlantUML, как и в [`architecture.md`](architecture.md). GitHub её в markdown
+не рендерит; чем смотреть картинкой — в разделе «Про формат» там же.
 
-    USER {
-        uuid id PK
-        bigint telegram_id UK "not null, он же chat_id бота"
-        string telegram_username "nullable, varchar(64)"
-        string first_name "not null, varchar(128)"
-        string timezone "not null, varchar(64), default 'UTC', IANA-имя"
-        timestamptz created_at "not null, default now()"
-    }
+Как читать: **точка перед полем означает `NOT NULL`**, поле без точки — nullable.
+Через `=` показано значение по умолчанию, `«PK»` / `«FK»` / `«UK»` — ключи.
+Связи в нотации «воронья лапка»: `||—o{` читается как «один ко многим, ноль допустим».
 
-    HABIT {
-        uuid id PK "шаблон привычки — статуса выполнения здесь нет"
-        uuid user_id FK "not null, ondelete CASCADE"
-        string title "not null, varchar(200)"
-        text description "nullable"
-        int duration_minutes "not null, default 5, check >= 5"
-        smallint_array schedule_days "not null, дни 1-7 пн-вс, check длина 1..7 и значения из {1..7}"
-        time schedule_time "not null, ЛОКАЛЬНОЕ время без TZ (инвариант 3)"
-        boolean is_archived "not null, default false, мягкое удаление"
-        date streak_reset_on "nullable, точка сброса серии после восстановления из архива"
-        timestamptz created_at "not null, default now()"
-        timestamptz updated_at "not null, default now(), onupdate now()"
-    }
+```plantuml
+@startuml erd
+hide circle
+skinparam linetype ortho
 
-    OCCURRENCE {
-        uuid id PK "конкретное выполнение в конкретный день — вся история здесь"
-        uuid habit_id FK "not null, ondelete CASCADE"
-        uuid user_id FK "not null, ondelete CASCADE, денормализация ради статистики"
-        date local_date "not null, дата по таймзоне пользователя на момент создания"
-        timestamptz scheduled_at "not null, исходное плановое время"
-        timestamptz current_due_at "not null, плановое время с учётом снузов"
-        int duration_minutes "not null, снимок Habit.duration_minutes на момент создания"
-        occurrence_status status "not null, default 'pending' — СТАТУС ВЫПОЛНЕНИЯ ЖИВЁТ ТОЛЬКО ЗДЕСЬ"
-        int snooze_count "not null, default 0, check 0..5"
-        timestamptz notified_at "nullable, метка отправки уведомления"
-        timestamptz followup_sent_at "nullable, метка догоняющего пинга (инвариант 7)"
-        timestamptz started_at "nullable, метка начала выполнения"
-        timestamptz finished_at "nullable, метка завершения выполнения"
-    }
+entity "users" as users {
+  * id : uuid <<PK>>
+  --
+  * telegram_id : bigint <<UK>>
+  telegram_username : varchar(64)
+  * first_name : varchar(128)
+  * timezone : varchar(64) = 'UTC'
+  * created_at : timestamptz = now()
+}
 
-    HABIT_PAUSE {
-        uuid id PK
-        uuid habit_id FK "not null, ondelete CASCADE"
-        date starts_on "not null"
-        date ends_on "not null, check ends_on >= starts_on, обязательна — бессрочных пауз нет"
-        timestamptz cancelled_at "nullable, метка досрочного снятия паузы"
-        timestamptz created_at "not null, default now()"
-    }
+entity "habits" as habits {
+  * id : uuid <<PK>>
+  --
+  * user_id : uuid <<FK>>
+  * title : varchar(200)
+  description : text
+  * duration_minutes : int = 5
+  * schedule_days : smallint[]
+  * schedule_time : time
+  * is_archived : boolean = false
+  streak_reset_on : date
+  * created_at : timestamptz = now()
+  * updated_at : timestamptz = now()
+}
+
+entity "occurrences" as occurrences {
+  * id : uuid <<PK>>
+  --
+  * habit_id : uuid <<FK>>
+  * user_id : uuid <<FK>>
+  * local_date : date
+  * scheduled_at : timestamptz
+  * current_due_at : timestamptz
+  * duration_minutes : int
+  * status : occurrence_status = 'pending'
+  * snooze_count : int = 0
+  notified_at : timestamptz
+  followup_sent_at : timestamptz
+  started_at : timestamptz
+  finished_at : timestamptz
+}
+
+entity "habit_pauses" as pauses {
+  * id : uuid <<PK>>
+  --
+  * habit_id : uuid <<FK>>
+  * starts_on : date
+  * ends_on : date
+  cancelled_at : timestamptz
+  * created_at : timestamptz = now()
+}
+
+users     ||--o{ habits      : создаёт
+users     ||--o{ occurrences : владеет
+habits    ||--o{ occurrences : порождает выполнения
+habits    ||--o{ pauses      : ставится на паузу
+
+note right of habits
+  Шаблон привычки. Статуса выполнения здесь нет
+  и быть не должно (инвариант 1).
+
+  schedule_time — ЛОКАЛЬНОЕ время без TZ
+  (инвариант 3): хранить его в UTC значит
+  уехать на час при переходе на летнее время.
+
+  user_id → ondelete CASCADE.
+end note
+
+note bottom of occurrences
+  Конкретное выполнение в конкретный день.
+  ВСЯ история и весь статус живут только здесь.
+
+  user_id — денормализация ради статистики,
+  чтобы не join'ить habits на каждый запрос.
+  duration_minutes — снимок на момент создания:
+  правка привычки не должна задним числом
+  двигать таймер уже запущенного занятия.
+  local_date — дата по таймзоне владельца.
+
+  habit_id и user_id → ondelete CASCADE.
+end note
+
+note bottom of pauses
+  ends_on обязательна: бессрочная пауза даёт
+  мёртвые привычки с формально живым стриком.
+  cancelled_at — досрочное снятие.
+
+  Создаётся только по явному действию
+  пользователя (инвариант 8). Системных пауз нет.
+end note
+@enduml
 ```
 
-## Ограничения уровня таблицы (не видны в полях выше)
+## Ограничения уровня таблицы
 
-- `occurrences`: `UNIQUE(habit_id, scheduled_at)` — защита от дублей при повторном запуске генератора (инвариант 7).
-- `occurrences`: индекс `(status, current_due_at)` — под диспетчер уведомлений, опрос раз в минуту.
-- `occurrences`: индекс `(user_id, local_date)` — под календарь-heatmap и расчёт стриков.
-- `habits`: индекс на `user_id` и на `is_archived`.
-- `habit_pauses`: индекс на `habit_id`.
+Не видны в списках полей выше, но существуют в БД.
+
+**Уникальность и внешние ключи**
+
+- `occurrences`: `UNIQUE(habit_id, scheduled_at)` — защита от дублей при повторном запуске генератора (инвариант 7). На нём же держится `ON CONFLICT DO NOTHING` в `services/generation.py`.
+- `users`: `UNIQUE(telegram_id)` — он же `chat_id` личной переписки с ботом.
+- Все FK — с `ondelete CASCADE`. Поэтому `python -m app.fixtures.seed`, пересоздавая пользователя, уносит вместе с ним все привычки и историю.
+
+**Проверки (`CHECK`)**
+
+| Таблица | Ограничение | Зачем |
+|---|---|---|
+| `habits` | `duration_minutes >= 5` | §3: убирает класс «привычек без длительности» |
+| `habits` | `array_length(schedule_days, 1) BETWEEN 1 AND 7` | привычка без единого дня расписания не имеет смысла |
+| `habits` | `schedule_days <@ ARRAY[1,…,7]` | дни недели 1–7, пн–вс |
+| `occurrences` | `snooze_count BETWEEN 0 AND 5` | §4: максимум пять снузов |
+| `occurrences` | `duration_minutes >= 5` | то же правило, что и на шаблоне — снимок не должен его нарушать |
+| `habit_pauses` | `ends_on >= starts_on` | отрицательных интервалов не бывает |
+
+**Индексы**
+
+| Таблица | Индекс | Подо что |
+|---|---|---|
+| `occurrences` | `(status, current_due_at)` | запрос диспетчера уведомлений, §6.2 — раз в тик |
+| `occurrences` | `(user_id, local_date)` | календарь-heatmap и расчёт стриков, §7 |
+| `habits` | `user_id`, `is_archived` | список привычек пользователя, §9 |
+| `habit_pauses` | `habit_id` | загрузка окон паузы генератором, §6.1 |
+
+**Тип-перечисление**
+
+`occurrence_status` — enum на стороне Postgres: `pending`, `notified`, `snoozed`, `in_progress`, `done`, `skipped`, `missed`, `paused`. Имена из §4, менять их нельзя. Переходы между ними — в [`architecture.md`](architecture.md) и §4 спеки.
