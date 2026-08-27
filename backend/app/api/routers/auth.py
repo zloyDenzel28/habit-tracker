@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import SessionDep
+from app.api.responses import DEV_LOGIN_ERRORS
 from app.api.schemas import DevLoginOut, user_out
 from app.config import settings
 from app.services import users
@@ -12,7 +13,12 @@ from app.services import users
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/dev-login", response_model=DevLoginOut)
+@router.post(
+    "/dev-login",
+    response_model=DevLoginOut,
+    summary="Токен без Telegram",
+    responses=DEV_LOGIN_ERRORS,
+)
 async def dev_login(session: SessionDep) -> DevLoginOut:
     """Выдаёт токен на сид-пользователя, минуя Telegram (§12.4).
 
