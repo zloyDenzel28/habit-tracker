@@ -19,10 +19,11 @@ from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, Message
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import SessionLocal
-from app.models import Occurrence
-from app.services import messages, occurrences, users
+from app.models import Occurrence, SentMessage
+from app.services import messages, occurrences, sent_messages, users
 from app.services.errors import (
     AlreadyInStatus,
     InvalidTransition,
@@ -118,17 +119,18 @@ async def on_occurrence_action(callback: CallbackQuery) -> None:
         return
     action, occurrence_id = parsed
 
-    note = await _apply(callback, action, occurrence_id)
-    if note is None:
+    text = await _apply(callback, action, occurrence_id)
+    if text is None:
         # Человеку уже ответили внутри — там понятнее, что именно пошло не так.
         return
 
     await callback.answer(TOASTS[action])
-    await _close_message(callback, note)
+    if await _close_message(callback, text):
+        await _mark_closed(callback, occurrence_id)
 
 
 async def _apply(callback: CallbackQuery, action: str, occurrence_id: uuid.UUID) -> str | None:
-    """Одно нажатие — одна транзакция. Возвращает строку-итог либо None.
+    """Одно нажатие — одна транзакция. Возвращает готовый текст либо None.
 
     None означает «ответ человеку уже отправлен»: дальше сообщение не трогаем,
     кнопки остаются на месте, чтобы можно было нажать ещё раз.
@@ -167,29 +169,74 @@ async def _apply(callback: CallbackQuery, action: str, occurrence_id: uuid.UUID)
             occurrence.id,
         )
 
-        # Собираем итог, пока сессия открыта: после commit объект живой
+        # Собираем текст, пока сессия открыта: после commit объект живой
         # (expire_on_commit=False), но привычка и таймзона нужны здесь.
-        return messages.action_note(occurrence, resolve_tz(user.timezone))
+        tz = resolve_tz(user.timezone)
+        sent = await _sent_message(session, callback, occurrence.id)
+        if sent is not None:
+            # Снимок из sent_messages, а не пересобранный reminder/followup:
+            # занятие только что сменило статус, и пересборка выдала бы текст,
+            # которого человеку не отправляли (шаг 6).
+            return messages.closed_text(sent.text, occurrence, tz)
+        # Сообщение отправлено до появления sent_messages (миграция 0003) —
+        # снимка нет. Берём текст у Telegram: html_text отдаёт его с разметкой,
+        # иначе <b> из уведомления при редактировании станет сырыми тегами.
+        message = callback.message
+        original = message.html_text if isinstance(message, Message) and message.text else ""
+        return messages.closed_text(original, occurrence, tz)
 
 
-async def _close_message(callback: CallbackQuery, note: str) -> None:
-    """Дописывает итог в уведомление и убирает кнопки.
+async def _sent_message(
+    session: AsyncSession, callback: CallbackQuery, occurrence_id: uuid.UUID
+) -> SentMessage | None:
+    """Запись про сообщение, под которым нажали кнопку."""
+    message = callback.message
+    if message is None:
+        return None
+    return await sent_messages.find_open(session, occurrence_id, message.message_id)
+
+
+async def _close_message(callback: CallbackQuery, text: str) -> bool:
+    """Заменяет текст уведомления на погашенный и убирает кнопки.
 
     Кнопки убираем сразу, а не полагаемся на доменную ошибку при повторном
     нажатии: сообщение в чате должно показывать текущее положение дел, иначе
     через день не понять, отвечал ты на него или нет.
+
+    Второе сообщение того же занятия (первое уведомление и догоняющий пинг
+    живут в чате одновременно) бот не трогает — его погасит джоб §6.4
+    в течение тика. Тянуться к нему отсюда значило бы дублировать джоб,
+    который всё равно нужен ради действий из веба.
     """
     message = callback.message
     if not isinstance(message, Message) or message.text is None:
         # Сообщение старше 48 часов Telegram отдаёт как InaccessibleMessage:
         # редактировать его нельзя, но действие уже записано в БД.
-        return
+        return False
     try:
-        # html_text возвращает исходный текст с разметкой — иначе <b> из
-        # уведомления при редактировании превратится в сырые теги.
-        await message.edit_text(f"{message.html_text}\n\n{note}")
+        await message.edit_text(text)
     except TelegramBadRequest as error:
         log.warning("не удалось отредактировать сообщение %s: %s", message.message_id, error)
+        return False
+    return True
+
+
+async def _mark_closed(callback: CallbackQuery, occurrence_id: uuid.UUID) -> None:
+    """Отметка «это сообщение погашено» — отдельной короткой транзакцией.
+
+    Отдельной намеренно: отметка ставится только после удачного редактирования,
+    а оно происходит уже после commit'а перехода статуса. Если запись сюда не
+    дойдёт, джоб §6.4 отредактирует сообщение ещё раз тем же самым текстом —
+    Telegram ответит «message is not modified», и отметка встанет там.
+    Идемпотентность (инвариант 7) от этого не страдает, чат тоже.
+    """
+    message = callback.message
+    if message is None:
+        return
+    async with SessionLocal() as session, session.begin():
+        sent = await sent_messages.find_open(session, occurrence_id, message.message_id)
+        if sent is not None:
+            sent_messages.mark_closed(sent)
 
 
 @router.callback_query()
