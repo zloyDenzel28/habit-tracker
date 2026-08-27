@@ -71,10 +71,22 @@ entity "habit_pauses" as pauses {
   * created_at : timestamptz = now()
 }
 
-users     ||--o{ habits      : создаёт
-users     ||--o{ occurrences : владеет
-habits    ||--o{ occurrences : порождает выполнения
-habits    ||--o{ pauses      : ставится на паузу
+entity "sent_messages" as sent {
+  * id : uuid <<PK>>
+  --
+  * occurrence_id : uuid <<FK>>
+  * kind : sent_message_kind
+  * message_id : bigint
+  * text : text
+  * sent_at : timestamptz
+  closed_at : timestamptz
+}
+
+users       ||--o{ habits      : создаёт
+users       ||--o{ occurrences : владеет
+habits      ||--o{ occurrences : порождает выполнения
+habits      ||--o{ pauses      : ставится на паузу
+occurrences ||--o{ sent        : отправлено в чат
 
 note right of habits
   Шаблон привычки. Статуса выполнения здесь нет
@@ -109,6 +121,22 @@ note bottom of pauses
   Создаётся только по явному действию
   пользователя (инвариант 8). Системных пауз нет.
 end note
+
+note right of sent
+  Сообщение, отправленное в чат (§6.4).
+  Без message_id действие из веба не может
+  погасить кнопки в Telegram.
+
+  text — СНИМОК отправленного, не ссылка на
+  способ его собрать: занятие изменится,
+  а сообщение уже нет. Та же причина, что и
+  у duration_minutes на occurrences.
+
+  Строк на занятие до двенадцати, а не две:
+  снуз шлёт и уведомление, и пинг заново (§5).
+
+  occurrence_id → ondelete CASCADE.
+end note
 @enduml
 ```
 
@@ -141,7 +169,11 @@ end note
 | `occurrences` | `(user_id, local_date)` | календарь-heatmap и расчёт стриков, §7 |
 | `habits` | `user_id`, `is_archived` | список привычек пользователя, §9 |
 | `habit_pauses` | `habit_id` | загрузка окон паузы генератором, §6.1 |
+| `sent_messages` | `occurrence_id` | сообщения одного занятия — их гасит диспетчер при вытеснении |
+| `sent_messages` | `(occurrence_id) WHERE closed_at IS NULL` | джоб закрытия сообщений, §6.4 — раз в тик. Частичный: незакрытых всегда единицы, а закрытых со временем накапливается по одной на занятие |
 
-**Тип-перечисление**
+**Типы-перечисления**
 
 `occurrence_status` — enum на стороне Postgres: `pending`, `notified`, `snoozed`, `in_progress`, `done`, `skipped`, `missed`, `paused`. Имена из §4, менять их нельзя. Переходы между ними — в [`architecture.md`](architecture.md) и §4 спеки.
+
+`sent_message_kind` — `notification` (первое уведомление) и `followup` (догоняющий пинг). Оба вида описаны в §5.
