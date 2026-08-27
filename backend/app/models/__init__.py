@@ -5,10 +5,16 @@
 """
 
 from app.models.base import Base
-from app.models.enums import MAX_SNOOZE_COUNT, TERMINAL_STATUSES, OccurrenceStatus
+from app.models.enums import (
+    MAX_SNOOZE_COUNT,
+    TERMINAL_STATUSES,
+    OccurrenceStatus,
+    SentMessageKind,
+)
 from app.models.habit import Habit
 from app.models.habit_pause import HabitPause
 from app.models.occurrence import Occurrence
+from app.models.sent_message import SentMessage
 from app.models.user import User
 
 __all__ = [
@@ -19,5 +25,7 @@ __all__ = [
     "HabitPause",
     "Occurrence",
     "OccurrenceStatus",
+    "SentMessage",
+    "SentMessageKind",
     "User",
 ]
