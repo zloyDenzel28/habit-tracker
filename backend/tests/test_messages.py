@@ -107,6 +107,36 @@ def test_название_привычки_экранируется():
     assert "Чтение &lt;b&gt;вслух&lt;/b&gt;" in message.text
 
 
+def test_погашенное_сообщение_дописывает_итог_к_снимку():
+    occurrence = make(OccurrenceStatus.done)
+    occurrence.finished_at = DUE
+    sent = "⏰ <b>Английский</b> — 19:00, 30 мин"
+
+    text = messages.closed_text(sent, occurrence, MSK)
+
+    assert text == f"{sent}\n\n✅ Выполнено в 19:00"
+
+
+def test_снимок_пинга_не_совпадает_с_пересобранным_после_смены_статуса():
+    """Ровно та причина, по которой текст сообщения хранится, а не пересобирается.
+
+    Пинг ушёл человеку, который нажал «Начал». Дальше он закрыл занятие
+    в вебе — статус стал done, и messages.followup для того же occurrence
+    собирает уже другую ветку (§5 различает их формулировкой). Погасить
+    сообщение этим текстом значило бы показать в чате то, чего не отправляли.
+    """
+    occurrence = make(OccurrenceStatus.in_progress)
+    sent = messages.followup(occurrence, MSK).text
+    assert "30 мин прошло" in sent
+
+    occurrence.status = OccurrenceStatus.done
+    occurrence.finished_at = DUE
+    rebuilt = messages.followup(occurrence, MSK).text
+
+    assert rebuilt != sent
+    assert messages.closed_text(sent, occurrence, MSK).startswith(sent)
+
+
 def test_callback_data_укладывается_в_лимит_телеграма():
     """Telegram обрезает callback_data длиннее 64 байт."""
     occurrence = make()
