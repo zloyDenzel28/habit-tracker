@@ -14,6 +14,7 @@
     pauses      отрезки пауз (§3, §7)
     habits      создание, правка, архив, пауза, смена таймзоны (§8, §9)
     messages    тексты уведомлений и наборы кнопок (§5)
+    sent_messages учёт отправленного в чат и выборка под закрытие (§6.4)
     stats       стрики и статистика (§7)
     users       поиск пользователя по telegram_id
 """
@@ -26,6 +27,7 @@ from app.services import (
     messages,
     occurrences,
     pauses,
+    sent_messages,
     stats,
     timeutils,
     users,
@@ -39,6 +41,7 @@ __all__ = [
     "messages",
     "occurrences",
     "pauses",
+    "sent_messages",
     "stats",
     "timeutils",
     "users",
