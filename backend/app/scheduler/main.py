@@ -1,4 +1,4 @@
-"""Процесс worker: расписание трёх джобов из §6 спеки.
+"""Процесс worker: расписание четырёх джобов из §6 спеки.
 
 Планировщик отдельным процессом, а не внутри API (§2): иначе при запуске API
 в несколько реплик уведомления начнут дублироваться.
@@ -68,6 +68,18 @@ def build_scheduler(notifier: Notifier) -> AsyncIOScheduler:
         name="§6.2 диспетчер уведомлений",
         # Иначе первый проход случится только через тик, а на отладке хочется
         # видеть реакцию сразу после старта контейнера.
+        next_run_time=now_utc(),
+    )
+
+    scheduler.add_job(
+        jobs.close_chat_messages,
+        IntervalTrigger(seconds=settings.scheduler_tick_seconds, timezone=SCHEDULER_TZ),
+        args=(SessionLocal, notifier),
+        id="close_chat_messages",
+        name="§6.4 закрытие сообщений",
+        # Тем же тиком, что и диспетчер: задержка между действием в вебе и
+        # погасшим сообщением в чате — это ровно один тик, и растягивать её
+        # отдельным расписанием незачем.
         next_run_time=now_utc(),
     )
 
